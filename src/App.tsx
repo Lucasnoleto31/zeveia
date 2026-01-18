@@ -21,6 +21,7 @@ import AlertsPage from "./pages/AlertsPage";
 import FunnelReportPage from "./pages/FunnelReportPage";
 import PerformanceReportPage from "./pages/PerformanceReportPage";
 import PartnerROIReportPage from "./pages/PartnerROIReportPage";
+import ClientsReportPage from "./pages/ClientsReportPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -57,6 +58,7 @@ const App = () => (
               <Route path="/reports/funnel" element={<ProtectedRoute><FunnelReportPage /></ProtectedRoute>} />
               <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReportPage /></ProtectedRoute>} />
               <Route path="/reports/roi" element={<ProtectedRoute><PartnerROIReportPage /></ProtectedRoute>} />
+              <Route path="/reports/clients" element={<ProtectedRoute><ClientsReportPage /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute requireSocio><SettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
