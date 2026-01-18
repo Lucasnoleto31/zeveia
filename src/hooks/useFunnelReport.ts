@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { LeadStatus } from '@/types/database';
-import { startOfMonth, endOfMonth, subMonths, format, parseISO, differenceInDays } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, format, parseISO, differenceInDays, differenceInMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export interface FunnelStage {
   status: LeadStatus;
@@ -9,6 +10,24 @@ export interface FunnelStage {
   count: number;
   percentage: number;
   color: string;
+}
+
+export interface CohortRetention {
+  month: number;
+  active: number;
+  converted: number;
+  lost: number;
+  activeRate: number;
+  conversionRate: number;
+}
+
+export interface CohortData {
+  cohort: string;
+  cohortDate: Date;
+  totalLeads: number;
+  retention: CohortRetention[];
+  finalConversionRate: number;
+  avgTimeToConvert: number | null;
 }
 
 export interface FunnelMetrics {
@@ -23,6 +42,9 @@ export interface FunnelMetrics {
   leadsByCampaign: { campaign: string; count: number }[];
   leadsByAssessor: { assessor: string; count: number; converted: number; rate: number }[];
   lossReasons: { reason: string; count: number }[];
+  cohortData: CohortData[];
+  bestCohort: { cohort: string; rate: number } | null;
+  avgRetentionAt3Months: number;
 }
 
 const stageConfig: Record<LeadStatus, { label: string; color: string; order: number }> = {
@@ -186,6 +208,114 @@ export function useFunnelReport(months: number = 6) {
         .map(([reason, count]) => ({ reason, count }))
         .sort((a, b) => b.count - a.count);
 
+      // Cohort Analysis
+      const cohortGroups: Record<string, { 
+        cohortDate: Date; 
+        leads: typeof allLeads 
+      }> = {};
+
+      // Group leads by entry month (cohort)
+      allLeads.forEach((lead) => {
+        const entryDate = parseISO(lead.created_at);
+        const cohortKey = format(entryDate, 'yyyy-MM');
+        if (!cohortGroups[cohortKey]) {
+          cohortGroups[cohortKey] = {
+            cohortDate: startOfMonth(entryDate),
+            leads: [],
+          };
+        }
+        cohortGroups[cohortKey].leads.push(lead);
+      });
+
+      const now = new Date();
+      const cohortData: CohortData[] = Object.entries(cohortGroups)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, { cohortDate, leads }]) => {
+          const totalCohortLeads = leads.length;
+          const maxMonthsElapsed = differenceInMonths(now, cohortDate);
+          
+          // Calculate retention for each month after entry
+          const retention: CohortRetention[] = [];
+          for (let m = 0; m <= Math.min(maxMonthsElapsed, 5); m++) {
+            const checkDate = subMonths(now, maxMonthsElapsed - m);
+            
+            let active = 0;
+            let converted = 0;
+            let lost = 0;
+            
+            leads.forEach((lead) => {
+              const createdAt = parseISO(lead.created_at);
+              const monthsSinceEntry = differenceInMonths(checkDate, createdAt);
+              
+              if (monthsSinceEntry >= m) {
+                // Check status at this point (simplified - using current status)
+                if (lead.status === 'convertido') {
+                  const convertedAt = lead.converted_at ? parseISO(lead.converted_at) : null;
+                  if (convertedAt && differenceInMonths(convertedAt, createdAt) <= m) {
+                    converted++;
+                  } else if (!convertedAt || differenceInMonths(convertedAt, createdAt) > m) {
+                    active++;
+                  } else {
+                    converted++;
+                  }
+                } else if (lead.status === 'perdido') {
+                  lost++;
+                } else {
+                  active++;
+                }
+              }
+            });
+
+            retention.push({
+              month: m,
+              active,
+              converted,
+              lost,
+              activeRate: totalCohortLeads > 0 ? ((active + converted) / totalCohortLeads) * 100 : 0,
+              conversionRate: totalCohortLeads > 0 ? (converted / totalCohortLeads) * 100 : 0,
+            });
+          }
+
+          // Calculate cohort conversion rate
+          const convertedInCohort = leads.filter((l) => l.status === 'convertido').length;
+          const finalConversionRate = totalCohortLeads > 0 
+            ? (convertedInCohort / totalCohortLeads) * 100 
+            : 0;
+
+          // Calculate average time to convert for this cohort
+          const convertedWithTime = leads.filter((l) => l.status === 'convertido' && l.converted_at);
+          const avgTimeToConvert = convertedWithTime.length > 0
+            ? convertedWithTime.reduce((sum, lead) => {
+                return sum + differenceInDays(parseISO(lead.converted_at!), parseISO(lead.created_at));
+              }, 0) / convertedWithTime.length
+            : null;
+
+          return {
+            cohort: format(cohortDate, 'MMM/yy', { locale: ptBR }),
+            cohortDate,
+            totalLeads: totalCohortLeads,
+            retention,
+            finalConversionRate,
+            avgTimeToConvert,
+          };
+        });
+
+      // Find best performing cohort
+      const bestCohort = cohortData.length > 0
+        ? cohortData.reduce((best, current) => 
+            current.finalConversionRate > (best?.rate || 0) 
+              ? { cohort: current.cohort, rate: current.finalConversionRate }
+              : best,
+            { cohort: '', rate: 0 }
+          )
+        : null;
+
+      // Calculate average retention at 3 months
+      const cohortsWithMonth3 = cohortData.filter((c) => c.retention.length > 3);
+      const avgRetentionAt3Months = cohortsWithMonth3.length > 0
+        ? cohortsWithMonth3.reduce((sum, c) => sum + (c.retention[3]?.activeRate || 0), 0) / cohortsWithMonth3.length
+        : 0;
+
       return {
         stages,
         totalLeads,
@@ -198,6 +328,9 @@ export function useFunnelReport(months: number = 6) {
         leadsByCampaign,
         leadsByAssessor,
         lossReasons,
+        cohortData,
+        bestCohort,
+        avgRetentionAt3Months,
       };
     },
   });
