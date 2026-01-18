@@ -1,11 +1,13 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useClient, useClientMetrics } from '@/hooks/useClients';
-import { useRevenues } from '@/hooks/useRevenues';
+import { INTERACTION_TYPES } from '@/hooks/useInteractions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
 import { 
   ArrowLeft, 
   User, 
@@ -19,7 +21,14 @@ import {
   TrendingDown,
   Package,
   Clock,
-  X
+  X,
+  Edit,
+  MessageCircle,
+  BarChart3,
+  Percent,
+  CreditCard,
+  ExternalLink,
+  FileText
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -35,7 +44,11 @@ import {
   Pie,
   Cell,
   Legend,
+  BarChart,
+  Bar,
 } from 'recharts';
+import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
+import { InteractionFormDialog } from '@/components/clients/InteractionFormDialog';
 
 const profileEmojis: Record<string, string> = {
   conservador: '🛡️',
@@ -65,11 +78,24 @@ function getPatrimonyRange(value?: number): string {
   return 'Acima de R$ 5.000.000';
 }
 
+function getInteractionIcon(type: string): string {
+  const found = INTERACTION_TYPES.find(t => t.value === type);
+  return found?.icon || '📝';
+}
+
+function getInteractionLabel(type: string): string {
+  const found = INTERACTION_TYPES.find(t => t.value === type);
+  return found?.label || type;
+}
+
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: client, isLoading } = useClient(id!);
   const { data: metrics, isLoading: metricsLoading } = useClientMetrics(id!);
+  
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
 
   const formatCurrency = (value?: number) => {
     if (!value) return 'R$ 0,00';
@@ -85,13 +111,17 @@ export default function ClientDetailPage() {
     return `R$ ${value.toFixed(0)}`;
   };
 
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('pt-BR').format(value);
+  };
+
   if (isLoading) {
     return (
       <MainLayout title="Carregando...">
         <div className="space-y-6">
           <Skeleton className="h-20 w-full" />
           <div className="grid grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
+            {[...Array(8)].map((_, i) => (
               <Skeleton key={i} className="h-24" />
             ))}
           </div>
@@ -120,13 +150,25 @@ export default function ClientDetailPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Back Button */}
-        <Button variant="ghost" onClick={() => navigate('/clients')} className="gap-2">
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Button>
+        {/* Header with Actions */}
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" onClick={() => navigate('/clients')} className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setInteractionDialogOpen(true)} className="gap-2">
+              <MessageCircle className="h-4 w-4" />
+              Nova Interação
+            </Button>
+            <Button onClick={() => setEditDialogOpen(true)} className="gap-2">
+              <Edit className="h-4 w-4" />
+              Editar
+            </Button>
+          </div>
+        </div>
 
-        {/* Simplified Header */}
+        {/* Title */}
         <div className="flex items-center gap-4">
           <h1 className="text-3xl font-bold">
             {client.type === 'pf' ? client.name : client.company_name}
@@ -139,7 +181,7 @@ export default function ClientDetailPage() {
           Cliente desde {format(new Date(client.created_at), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
         </p>
 
-        {/* Metrics Cards */}
+        {/* Metrics Cards - First Row */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {/* Receita Total */}
           <Card>
@@ -239,7 +281,106 @@ export default function ClientDetailPage() {
           </Card>
         </div>
 
-        {/* Main Content - Two Columns */}
+        {/* Metrics Cards - Second Row */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Lotes Girados */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Lotes Girados
+              </CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {metricsLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{formatNumber(metrics?.totalLotsTraded || 0)}</div>
+                  <p className={`text-xs ${(metrics?.lotsChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {(metrics?.lotsChange || 0) >= 0 ? '+' : ''}
+                    {metrics?.lotsChange?.toFixed(0) || 0}% vs mês anterior
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Taxa de Zeragem */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Taxa de Zeragem
+              </CardTitle>
+              <Percent className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {metricsLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{metrics?.zeroRate?.toFixed(1) || 0}%</div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatNumber(metrics?.totalLotsZeroed || 0)} lotes zerados
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Custo Plataforma */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Custo Plataforma
+              </CardTitle>
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {metricsLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{formatCurrency(metrics?.totalPlatformCost)}</div>
+                  <p className={`text-xs ${(metrics?.platformCostChange || 0) >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    {(metrics?.platformCostChange || 0) >= 0 ? '+' : ''}
+                    {metrics?.platformCostChange?.toFixed(0) || 0}% vs mês anterior
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Última Interação */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Última Interação
+              </CardTitle>
+              <MessageCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {metricsLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">
+                    {metrics?.lastInteraction 
+                      ? format(new Date(metrics.lastInteraction.created_at), 'dd/MM/yyyy')
+                      : 'Nunca'}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {metrics?.lastInteraction 
+                      ? `${getInteractionIcon(metrics.lastInteraction.type)} ${getInteractionLabel(metrics.lastInteraction.type)}`
+                      : '-'}
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content - First Row */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Left Column - Dados Cadastrais */}
           <Card>
@@ -248,71 +389,146 @@ export default function ClientDetailPage() {
               <CardTitle>Dados Cadastrais</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-2">
-                {client.type === 'pf' ? (
-                  <User className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className="font-medium">
-                  {client.type === 'pf' ? 'Pessoa Física' : 'Pessoa Jurídica'}
-                </span>
-              </div>
-
-              {client.type === 'pf' && client.cpf && (
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground text-sm w-20">CPF:</span>
-                  <span className="font-mono">{client.cpf}</span>
-                </div>
-              )}
-
-              {client.type === 'pj' && client.cnpj && (
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground text-sm w-20">CNPJ:</span>
-                  <span className="font-mono">{client.cnpj}</span>
-                </div>
-              )}
-
-              {client.email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span>{client.email}</span>
-                </div>
-              )}
-
-              {client.phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{client.phone}</span>
-                </div>
-              )}
-
-              {client.state && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{client.state}</span>
-                </div>
-              )}
-
-              {client.birth_date && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{format(new Date(client.birth_date), 'dd/MM/yyyy')}</span>
-                </div>
-              )}
-
-              {client.profile && (
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground text-sm">Perfil:</span>
-                  <span className="font-medium capitalize">
-                    {client.profile} {profileEmojis[client.profile] || ''}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-muted-foreground text-sm block">Tipo</span>
+                  <span className="font-medium flex items-center gap-2">
+                    {client.type === 'pf' ? (
+                      <>
+                        <User className="h-4 w-4" />
+                        Pessoa Física
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="h-4 w-4" />
+                        Pessoa Jurídica
+                      </>
+                    )}
                   </span>
                 </div>
+
+                {client.account_number && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">Número da Conta</span>
+                    <span className="font-mono">{client.account_number}</span>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-4">
+                {client.type === 'pf' && client.cpf && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">CPF</span>
+                    <span className="font-mono">{client.cpf}</span>
+                  </div>
+                )}
+
+                {client.type === 'pj' && client.cnpj && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">CNPJ</span>
+                    <span className="font-mono">{client.cnpj}</span>
+                  </div>
+                )}
+
+                {client.birth_date && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">Data de Nascimento</span>
+                    <span>{format(new Date(client.birth_date), 'dd/MM/yyyy')}</span>
+                  </div>
+                )}
+
+                {client.email && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">E-mail</span>
+                    <span className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      {client.email}
+                    </span>
+                  </div>
+                )}
+
+                {client.phone && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">Telefone</span>
+                    <span className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      {client.phone}
+                    </span>
+                  </div>
+                )}
+
+                {client.state && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">Estado</span>
+                    <span className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      {client.state}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-4">
+                {client.profile && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">Perfil de Investidor</span>
+                    <span className="font-medium capitalize">
+                      {client.profile} {profileEmojis[client.profile] || ''}
+                    </span>
+                  </div>
+                )}
+
+                <div>
+                  <span className="text-muted-foreground text-sm block">Patrimônio</span>
+                  <span className="font-medium">{getPatrimonyRange(client.patrimony)}</span>
+                </div>
+
+                {client.origin && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">Origem</span>
+                    <span>{client.origin.name}</span>
+                  </div>
+                )}
+
+                {client.campaign && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">Campanha</span>
+                    <span>{client.campaign.name}</span>
+                  </div>
+                )}
+
+                {client.partner && (
+                  <div>
+                    <span className="text-muted-foreground text-sm block">Parceiro</span>
+                    <Link 
+                      to={`/partners/${client.partner.id}`}
+                      className="flex items-center gap-1 text-primary hover:underline"
+                    >
+                      {client.partner.name}
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {client.observations && (
+                <>
+                  <Separator />
+                  <div>
+                    <span className="text-muted-foreground text-sm block mb-1">Observações</span>
+                    <p className="text-sm">{client.observations}</p>
+                  </div>
+                </>
               )}
 
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-sm">Patrimônio:</span>
-                <span className="font-medium">{getPatrimonyRange(client.patrimony)}</span>
+              <Separator />
+              
+              <div className="text-xs text-muted-foreground">
+                Última atualização: {format(new Date(client.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
               </div>
             </CardContent>
           </Card>
@@ -367,7 +583,114 @@ export default function ClientDetailPage() {
           </Card>
         </div>
 
-        {/* Second Row - Cross-selling and Revenue by Product */}
+        {/* Second Row - Platform Costs and Operations */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Custos de Plataforma */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-muted-foreground" />
+                Custos de Plataforma
+              </CardTitle>
+              <CardDescription>
+                {metricsLoading ? (
+                  <Skeleton className="h-4 w-48" />
+                ) : (
+                  <>
+                    {metrics?.platformsUsed || 0} plataforma(s) • Média mensal: {formatCurrency(metrics?.avgMonthlyCost)}
+                  </>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {metricsLoading ? (
+                <Skeleton className="h-[200px] w-full" />
+              ) : metrics?.costByPlatform && metrics.costByPlatform.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={metrics.costByPlatform} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      type="number" 
+                      tickFormatter={formatCurrencyShort}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis 
+                      type="category" 
+                      dataKey="name"
+                      tick={{ fontSize: 12 }}
+                      width={80}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [formatCurrency(value), 'Custo']}
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Bar dataKey="value" fill="hsl(var(--chart-3))" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  Sem dados de custos de plataforma
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Operações/Contratos */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                Operações por Ativo
+              </CardTitle>
+              <CardDescription>
+                {metricsLoading ? (
+                  <Skeleton className="h-4 w-48" />
+                ) : (
+                  <>
+                    {formatNumber(metrics?.totalLotsTraded || 0)} girados • {formatNumber(metrics?.totalLotsZeroed || 0)} zerados
+                  </>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {metricsLoading ? (
+                <Skeleton className="h-[200px] w-full" />
+              ) : metrics?.lotsByAsset && metrics.lotsByAsset.length > 0 ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={metrics.lotsByAsset}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Bar dataKey="traded" name="Girados" fill="hsl(var(--chart-1))" stackId="a" />
+                    <Bar dataKey="zeroed" name="Zerados" fill="hsl(var(--chart-2))" stackId="a" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  Sem dados de operações
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Third Row - Cross-selling and Revenue by Product */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Cross-selling Opportunities */}
           <Card>
@@ -455,7 +778,76 @@ export default function ClientDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Fourth Row - Interactions Timeline */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle>Histórico de Interações</CardTitle>
+                <CardDescription>Últimas {metrics?.totalInteractions || 0} interações registradas</CardDescription>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setInteractionDialogOpen(true)} className="gap-2">
+              <MessageCircle className="h-4 w-4" />
+              Nova Interação
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {metricsLoading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : metrics?.interactions && metrics.interactions.length > 0 ? (
+              <div className="space-y-4">
+                {metrics.interactions.map((interaction) => (
+                  <div 
+                    key={interaction.id}
+                    className="flex items-start gap-4 p-4 rounded-lg border bg-muted/30"
+                  >
+                    <div className="text-2xl">{getInteractionIcon(interaction.type)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">{getInteractionLabel(interaction.type)}</span>
+                        <span className="text-muted-foreground text-xs">•</span>
+                        <span className="text-muted-foreground text-xs">
+                          {format(new Date(interaction.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                        <span className="text-muted-foreground text-xs">•</span>
+                        <span className="text-muted-foreground text-xs">
+                          {interaction.userName}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {interaction.content}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">
+                Nenhuma interação registrada
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Dialogs */}
+      <ClientFormDialog 
+        open={editDialogOpen} 
+        onOpenChange={setEditDialogOpen} 
+        client={client}
+      />
+      <InteractionFormDialog
+        open={interactionDialogOpen}
+        onOpenChange={setInteractionDialogOpen}
+        clientId={client.id}
+      />
     </MainLayout>
   );
 }

@@ -159,6 +159,7 @@ export function useClientMetrics(clientId: string) {
   return useQuery({
     queryKey: ['clientMetrics', clientId],
     queryFn: async () => {
+      // Fetch revenues
       const { data: revenues, error: revenuesError } = await supabase
         .from('revenues')
         .select('*, product:products(*)')
@@ -166,6 +167,7 @@ export function useClientMetrics(clientId: string) {
 
       if (revenuesError) throw revenuesError;
 
+      // Fetch all products
       const { data: allProducts, error: productsError } = await supabase
         .from('products')
         .select('*')
@@ -173,12 +175,40 @@ export function useClientMetrics(clientId: string) {
 
       if (productsError) throw productsError;
 
+      // Fetch contracts with assets
       const { data: contracts, error: contractsError } = await supabase
         .from('contracts')
-        .select('*')
+        .select('*, asset:assets(*)')
         .eq('client_id', clientId);
 
       if (contractsError) throw contractsError;
+
+      // Fetch platform costs
+      const { data: platformCosts, error: platformCostsError } = await supabase
+        .from('platform_costs')
+        .select('*, platform:platforms(*)')
+        .eq('client_id', clientId);
+
+      if (platformCostsError) throw platformCostsError;
+
+      // Fetch interactions
+      const { data: interactions, error: interactionsError } = await supabase
+        .from('interactions')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (interactionsError) throw interactionsError;
+
+      // Get user profiles for interactions
+      const userIds = [...new Set(interactions?.map(i => i.user_id) || [])];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, name')
+        .in('user_id', userIds);
+
+      const profilesMap = new Map(profiles?.map(p => [p.user_id, p.name]));
 
       const totalRevenue = revenues?.reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
       
@@ -237,7 +267,105 @@ export function useClientMetrics(clientId: string) {
       });
       const revenueByProduct = Array.from(revenueByProductMap.values()).sort((a, b) => b.value - a.value);
 
+      // --- Contract/Operations Stats ---
+      const totalLotsTraded = contracts?.reduce((sum, c) => sum + (c.lots_traded || 0), 0) || 0;
+      const totalLotsZeroed = contracts?.reduce((sum, c) => sum + (c.lots_zeroed || 0), 0) || 0;
+      const zeroRate = totalLotsTraded > 0 ? (totalLotsZeroed / totalLotsTraded) * 100 : 0;
+
+      // Current month contracts
+      const monthlyLotsTraded = contracts
+        ?.filter(c => c.date.startsWith(currentMonth))
+        .reduce((sum, c) => sum + (c.lots_traded || 0), 0) || 0;
+      const prevMonthLotsTraded = contracts
+        ?.filter(c => c.date.startsWith(prevMonth))
+        .reduce((sum, c) => sum + (c.lots_traded || 0), 0) || 0;
+      const lotsChange = prevMonthLotsTraded > 0 
+        ? ((monthlyLotsTraded - prevMonthLotsTraded) / prevMonthLotsTraded) * 100 
+        : monthlyLotsTraded > 0 ? 100 : 0;
+
+      // Lots by asset
+      const lotsByAssetMap = new Map<string, { name: string; traded: number; zeroed: number }>();
+      contracts?.forEach(c => {
+        const assetCode = c.asset?.code || 'Outros';
+        const existing = lotsByAssetMap.get(assetCode);
+        if (existing) {
+          existing.traded += c.lots_traded || 0;
+          existing.zeroed += c.lots_zeroed || 0;
+        } else {
+          lotsByAssetMap.set(assetCode, { name: assetCode, traded: c.lots_traded || 0, zeroed: c.lots_zeroed || 0 });
+        }
+      });
+      const lotsByAsset = Array.from(lotsByAssetMap.values()).sort((a, b) => b.traded - a.traded);
+
+      // Lots by month (last 12 months)
+      const lotsByMonth: { month: string; traded: number; zeroed: number }[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = date.toISOString().slice(0, 7);
+        const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short' });
+        const traded = contracts
+          ?.filter(c => c.date.startsWith(monthKey))
+          .reduce((sum, c) => sum + (c.lots_traded || 0), 0) || 0;
+        const zeroed = contracts
+          ?.filter(c => c.date.startsWith(monthKey))
+          .reduce((sum, c) => sum + (c.lots_zeroed || 0), 0) || 0;
+        lotsByMonth.push({ month: monthLabel, traded, zeroed });
+      }
+
+      // --- Platform Costs Stats ---
+      const totalPlatformCost = platformCosts?.reduce((sum, pc) => sum + Number(pc.value), 0) || 0;
+      const monthlyPlatformCost = platformCosts
+        ?.filter(pc => pc.date.startsWith(currentMonth))
+        .reduce((sum, pc) => sum + Number(pc.value), 0) || 0;
+      const prevMonthPlatformCost = platformCosts
+        ?.filter(pc => pc.date.startsWith(prevMonth))
+        .reduce((sum, pc) => sum + Number(pc.value), 0) || 0;
+      const platformCostChange = prevMonthPlatformCost > 0 
+        ? ((monthlyPlatformCost - prevMonthPlatformCost) / prevMonthPlatformCost) * 100 
+        : monthlyPlatformCost > 0 ? 100 : 0;
+
+      // Platforms used
+      const platformsUsed = new Set(platformCosts?.map(pc => pc.platform_id)).size;
+
+      // Cost by platform
+      const costByPlatformMap = new Map<string, { name: string; value: number }>();
+      platformCosts?.forEach(pc => {
+        const platformName = pc.platform?.name || 'Outros';
+        const existing = costByPlatformMap.get(platformName);
+        if (existing) {
+          existing.value += Number(pc.value);
+        } else {
+          costByPlatformMap.set(platformName, { name: platformName, value: Number(pc.value) });
+        }
+      });
+      const costByPlatform = Array.from(costByPlatformMap.values()).sort((a, b) => b.value - a.value);
+
+      // Cost by month (last 12 months)
+      const costByMonth: { month: string; value: number }[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = date.toISOString().slice(0, 7);
+        const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short' });
+        const cost = platformCosts
+          ?.filter(pc => pc.date.startsWith(monthKey))
+          .reduce((sum, pc) => sum + Number(pc.value), 0) || 0;
+        costByMonth.push({ month: monthLabel, value: cost });
+      }
+
+      // Average monthly cost (only months with data)
+      const monthsWithCost = costByMonth.filter(m => m.value > 0).length;
+      const avgMonthlyCost = monthsWithCost > 0 ? totalPlatformCost / monthsWithCost : 0;
+
+      // --- Interactions Stats ---
+      const interactionsWithUsers = interactions?.map(i => ({
+        ...i,
+        userName: profilesMap.get(i.user_id) || 'Desconhecido',
+      })) || [];
+
+      const lastInteraction = interactions?.[0] || null;
+
       return {
+        // Revenue metrics
         totalRevenue,
         monthlyRevenue,
         revenueChange,
@@ -247,8 +375,27 @@ export function useClientMetrics(clientId: string) {
         unusedProducts,
         revenueByMonth,
         revenueByProduct,
+        // Contract/Operations metrics
         totalContracts: contracts?.length || 0,
-        totalLotsTraded: contracts?.reduce((sum, c) => sum + c.lots_traded, 0) || 0,
+        totalLotsTraded,
+        totalLotsZeroed,
+        zeroRate,
+        monthlyLotsTraded,
+        lotsChange,
+        lotsByAsset,
+        lotsByMonth,
+        // Platform costs metrics
+        totalPlatformCost,
+        monthlyPlatformCost,
+        platformCostChange,
+        platformsUsed,
+        avgMonthlyCost,
+        costByPlatform,
+        costByMonth,
+        // Interactions
+        interactions: interactionsWithUsers,
+        lastInteraction,
+        totalInteractions: interactions?.length || 0,
       };
     },
     enabled: !!clientId,
