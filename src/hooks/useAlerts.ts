@@ -9,36 +9,59 @@ export interface AlertFilters {
   search?: string;
 }
 
+// Batch fetch all alerts to overcome 1000 record limit
+async function fetchAllAlerts(filters?: AlertFilters) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('alerts')
+      .select(`
+        *,
+        client:clients(*),
+        lead:leads(*)
+      `)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+    if (filters?.read !== undefined) {
+      query = query.eq('read', filters.read);
+    }
+    if (filters?.dismissed !== undefined) {
+      query = query.eq('dismissed', filters.dismissed);
+    }
+    if (filters?.search) {
+      query = query.ilike('message', `%${filters.search}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as Alert[];
+}
+
 export function useAlerts(filters?: AlertFilters) {
   return useQuery({
     queryKey: ['alerts', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('alerts')
-        .select(`
-          *,
-          client:clients(*),
-          lead:leads(*)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (filters?.type) {
-        query = query.eq('type', filters.type);
-      }
-      if (filters?.read !== undefined) {
-        query = query.eq('read', filters.read);
-      }
-      if (filters?.dismissed !== undefined) {
-        query = query.eq('dismissed', filters.dismissed);
-      }
-      if (filters?.search) {
-        query = query.ilike('message', `%${filters.search}%`);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Alert[];
-    },
+    queryFn: async () => fetchAllAlerts(filters),
   });
 }
 

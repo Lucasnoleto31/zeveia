@@ -14,57 +14,80 @@ interface LeadFilters {
   endDate?: string;
 }
 
+// Batch fetch all leads to overcome 1000 record limit
+async function fetchAllLeadsWithRelations(filters?: LeadFilters) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('leads')
+      .select(`
+        *,
+        origin:origins(*),
+        campaign:campaigns(*),
+        partner:partners(*),
+        loss_reason:loss_reasons(*)
+      `)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (filters?.search) {
+      query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`);
+    }
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters?.assessorId) {
+      query = query.eq('assessor_id', filters.assessorId);
+    }
+
+    if (filters?.originId) {
+      query = query.eq('origin_id', filters.originId);
+    }
+
+    if (filters?.campaignId) {
+      query = query.eq('campaign_id', filters.campaignId);
+    }
+
+    if (filters?.partnerId) {
+      query = query.eq('partner_id', filters.partnerId);
+    }
+
+    if (filters?.startDate) {
+      query = query.gte('created_at', filters.startDate);
+    }
+
+    if (filters?.endDate) {
+      query = query.lte('created_at', filters.endDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as Lead[];
+}
+
 export function useLeads(filters?: LeadFilters) {
   return useQuery({
     queryKey: ['leads', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('leads')
-        .select(`
-          *,
-          origin:origins(*),
-          campaign:campaigns(*),
-          partner:partners(*),
-          loss_reason:loss_reasons(*)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`);
-      }
-
-      if (filters?.status) {
-        query = query.eq('status', filters.status);
-      }
-
-      if (filters?.assessorId) {
-        query = query.eq('assessor_id', filters.assessorId);
-      }
-
-      if (filters?.originId) {
-        query = query.eq('origin_id', filters.originId);
-      }
-
-      if (filters?.campaignId) {
-        query = query.eq('campaign_id', filters.campaignId);
-      }
-
-      if (filters?.partnerId) {
-        query = query.eq('partner_id', filters.partnerId);
-      }
-
-      if (filters?.startDate) {
-        query = query.gte('created_at', filters.startDate);
-      }
-
-      if (filters?.endDate) {
-        query = query.lte('created_at', filters.endDate);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Lead[];
-    },
+    queryFn: async () => fetchAllLeadsWithRelations(filters),
   });
 }
 

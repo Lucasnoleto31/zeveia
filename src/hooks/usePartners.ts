@@ -8,31 +8,54 @@ interface PartnerFilters {
   active?: boolean;
 }
 
+// Batch fetch all partners to overcome 1000 record limit
+async function fetchAllPartners(filters?: PartnerFilters) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('partners')
+      .select('*')
+      .order('name')
+      .range(from, to);
+
+    if (filters?.search) {
+      query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+    }
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    if (filters?.active !== undefined) {
+      query = query.eq('active', filters.active);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as Partner[];
+}
+
 export function usePartners(filters?: PartnerFilters) {
   return useQuery({
     queryKey: ['partners', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('partners')
-        .select('*')
-        .order('name');
-
-      if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
-      }
-
-      if (filters?.type) {
-        query = query.eq('type', filters.type);
-      }
-
-      if (filters?.active !== undefined) {
-        query = query.eq('active', filters.active);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Partner[];
-    },
+    queryFn: async () => fetchAllPartners(filters),
   });
 }
 

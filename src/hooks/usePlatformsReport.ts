@@ -116,49 +116,96 @@ export function usePlatformsReport(options: PlatformsReportOptions | number = 12
         startDateStr = format(subMonths(startOfMonth(new Date()), months - 1), 'yyyy-MM-dd');
       }
 
-      // Fetch platform costs with relations
-      let costsQuery = supabase
-        .from('platform_costs')
-        .select(`
-          id,
-          client_id,
-          platform_id,
-          date,
-          value,
-          client:clients(id, name, state, partner_id, assessor_id, partner:partners(id, name)),
-          platform:platforms(id, name)
-        `)
-        .gte('date', startDateStr);
+      // Batch fetch all platform costs
+      async function fetchAllPlatformCostsForReport() {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
 
-      if (endDateStr) {
-        costsQuery = costsQuery.lte('date', endDateStr);
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          let query = supabase
+            .from('platform_costs')
+            .select(`
+              id,
+              client_id,
+              platform_id,
+              date,
+              value,
+              client:clients(id, name, state, partner_id, assessor_id, partner:partners(id, name)),
+              platform:platforms(id, name)
+            `)
+            .gte('date', startDateStr)
+            .range(from, to);
+
+          if (endDateStr) {
+            query = query.lte('date', endDateStr);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
       }
 
-      const { data: platformCosts, error: costsError } = await costsQuery;
+      // Batch fetch all contracts for platforms report
+      async function fetchAllContractsForPlatformsReport() {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
 
-      if (costsError) throw costsError;
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
 
-      // Fetch contracts with platform info
-      let contractsQuery = supabase
-        .from('contracts')
-        .select(`
-          id,
-          client_id,
-          platform_id,
-          lots_traded,
-          lots_zeroed,
-          date,
-          platform:platforms(id, name)
-        `)
-        .gte('date', startDateStr);
+          let query = supabase
+            .from('contracts')
+            .select(`
+              id,
+              client_id,
+              platform_id,
+              lots_traded,
+              lots_zeroed,
+              date,
+              platform:platforms(id, name)
+            `)
+            .gte('date', startDateStr)
+            .range(from, to);
 
-      if (endDateStr) {
-        contractsQuery = contractsQuery.lte('date', endDateStr);
+          if (endDateStr) {
+            query = query.lte('date', endDateStr);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
       }
 
-      const { data: contracts, error: contractsError } = await contractsQuery;
-
-      if (contractsError) throw contractsError;
+      const platformCosts = await fetchAllPlatformCostsForReport();
+      const contracts = await fetchAllContractsForPlatformsReport();
 
       // Fetch all platforms
       const { data: platforms, error: platformsError } = await supabase
