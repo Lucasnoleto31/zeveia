@@ -166,34 +166,45 @@ export function usePartnerDetail(partnerId: string | null) {
 
       const clients = allClients;
 
-      // Get revenues for all clients (paginated)
+      // Get revenues for all clients (in chunks to avoid URL length limit)
       const clientIds = clients?.map(c => c.id) || [];
       
       let allRevenues: any[] = [];
       
       if (clientIds.length > 0) {
-        let revenuePage = 0;
-        let hasMoreRevenues = true;
+        // Dividir clientIds em chunks de 50 para evitar URL muito longa
+        const CHUNK_SIZE = 50;
+        const chunks: string[][] = [];
+        
+        for (let i = 0; i < clientIds.length; i += CHUNK_SIZE) {
+          chunks.push(clientIds.slice(i, i + CHUNK_SIZE));
+        }
 
-        while (hasMoreRevenues) {
-          const from = revenuePage * PAGE_SIZE;
-          const to = from + PAGE_SIZE - 1;
+        // Processar cada chunk
+        for (const chunk of chunks) {
+          let revenuePage = 0;
+          let hasMoreRevenues = true;
 
-          const { data, error } = await supabase
-            .from('revenues')
-            .select('client_id, our_share, date')
-            .in('client_id', clientIds)
-            .order('date', { ascending: false })
-            .range(from, to);
+          while (hasMoreRevenues) {
+            const from = revenuePage * PAGE_SIZE;
+            const to = from + PAGE_SIZE - 1;
 
-          if (error) throw error;
+            const { data, error } = await supabase
+              .from('revenues')
+              .select('client_id, our_share, date')
+              .in('client_id', chunk)
+              .order('date', { ascending: false })
+              .range(from, to);
 
-          if (data && data.length > 0) {
-            allRevenues = [...allRevenues, ...data];
-            hasMoreRevenues = data.length === PAGE_SIZE;
-            revenuePage++;
-          } else {
-            hasMoreRevenues = false;
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+              allRevenues = [...allRevenues, ...data];
+              hasMoreRevenues = data.length === PAGE_SIZE;
+              revenuePage++;
+            } else {
+              hasMoreRevenues = false;
+            }
           }
         }
       }
