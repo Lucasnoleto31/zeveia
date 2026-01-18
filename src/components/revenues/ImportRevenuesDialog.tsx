@@ -24,7 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { useImportRevenues } from '@/hooks/useRevenues';
 import { useClients, useCreateClient } from '@/hooks/useClients';
 import { useProducts, useSubproducts } from '@/hooks/useConfiguration';
-import { findClientMatch, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
+import { findClientMatch, findClientMatchWithMappings, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
+import { useAccountMappings } from '@/hooks/useAccountMappings';
 import { parseExcelDate } from '@/utils/excelDateParser';
 import { MatchConfidenceBadge } from '@/components/imports/MatchConfidenceBadge';
 import { toast } from 'sonner';
@@ -80,6 +81,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
   const { data: clients } = useClients({});
   const { data: products } = useProducts();
   const { data: subproducts } = useSubproducts();
+  const { data: accountMappings } = useAccountMappings();
 
   const [parsedData, setParsedData] = useState<ParsedRevenue[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -150,7 +152,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
           let clientToCreate: ClientToCreate | undefined;
 
           if (clients) {
-            const matchResult = findClientMatch(clients, {
+            const matchResult = findClientMatchWithMappings(clients, accountMappings || [], {
               accountNumber,
               cpf,
               cnpj,
@@ -219,7 +221,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
     };
 
     reader.readAsBinaryString(file);
-  }, [clients, products]);
+  }, [clients, products, accountMappings]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && parseFile(files[0]),

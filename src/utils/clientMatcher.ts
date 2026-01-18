@@ -1,7 +1,7 @@
 import { Client } from '@/types/database';
 
 export type MatchConfidence = 'high' | 'medium' | 'low' | null;
-export type MatchMethod = 'account_number' | 'cpf' | 'cnpj' | 'name' | null;
+export type MatchMethod = 'account_number' | 'cpf' | 'cnpj' | 'name' | 'account_mapping' | null;
 
 export interface ClientMatchResult {
   client: Client | null;
@@ -123,7 +123,52 @@ export function getMatchMethodLabel(method: MatchMethod): string {
       return 'CNPJ';
     case 'name':
       return 'Nome';
+    case 'account_mapping':
+      return 'Conta Mapeada (Merge)';
     default:
       return 'Não encontrado';
   }
+}
+
+export interface AccountMappingData {
+  id: string;
+  client_id: string;
+  account_number: string;
+  original_client_name: string | null;
+}
+
+/**
+ * Encontra cliente usando também a tabela de mapeamento de contas (para clientes mesclados)
+ */
+export function findClientMatchWithMappings(
+  clients: Client[],
+  mappings: AccountMappingData[],
+  data: MatchInput
+): ClientMatchResult {
+  // 1. Primeiro, tenta match direto nos clientes
+  const directMatch = findClientMatch(clients, data);
+  if (directMatch.client) {
+    return directMatch;
+  }
+
+  // 2. Se não encontrou e tem número de conta, busca na tabela de mapeamento
+  if (data.accountNumber) {
+    const normalizedAccount = data.accountNumber.toLowerCase().trim();
+    const mapping = mappings.find(
+      (m) => m.account_number?.toLowerCase().trim() === normalizedAccount
+    );
+    
+    if (mapping) {
+      const mappedClient = clients.find((c) => c.id === mapping.client_id);
+      if (mappedClient) {
+        return {
+          client: mappedClient,
+          matchedBy: 'account_mapping',
+          confidence: 'high',
+        };
+      }
+    }
+  }
+
+  return { client: null, matchedBy: null, confidence: null };
 }

@@ -24,7 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { useImportContracts } from '@/hooks/useContracts';
 import { useClients } from '@/hooks/useClients';
 import { useAssets, usePlatforms } from '@/hooks/useConfiguration';
-import { findClientMatch, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
+import { findClientMatchWithMappings, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
+import { useAccountMappings } from '@/hooks/useAccountMappings';
 import { parseExcelDate } from '@/utils/excelDateParser';
 import { MatchConfidenceBadge } from '@/components/imports/MatchConfidenceBadge';
 import { toast } from 'sonner';
@@ -65,6 +66,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
   const { data: clients } = useClients({});
   const { data: assets } = useAssets();
   const { data: platforms } = usePlatforms();
+  const { data: accountMappings } = useAccountMappings();
 
   const [parsedData, setParsedData] = useState<ParsedContract[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -129,7 +131,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
           let matchMethod: MatchMethod = null;
 
           if (clients) {
-            const matchResult = findClientMatch(clients, {
+            const matchResult = findClientMatchWithMappings(clients, accountMappings || [], {
               accountNumber,
               cpf,
               cnpj,
@@ -195,7 +197,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
     };
 
     reader.readAsBinaryString(file);
-  }, [clients, assets, platforms]);
+  }, [clients, assets, platforms, accountMappings]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && parseFile(files[0]),

@@ -7,6 +7,7 @@ interface MergeClientsParams {
   targetClientId: string;
   sourceClientIds: string[];
   deleteSourceClients: boolean;
+  allClients: Client[];
 }
 
 interface MergeResult {
@@ -15,6 +16,7 @@ interface MergeResult {
   platformCostsMerged: number;
   interactionsMerged: number;
   alertsMerged: number;
+  accountsMapped: number;
   sourceClientsDeleted: number;
 }
 
@@ -22,13 +24,14 @@ export function useMergeClients() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ targetClientId, sourceClientIds, deleteSourceClients }: MergeClientsParams): Promise<MergeResult> => {
+    mutationFn: async ({ targetClientId, sourceClientIds, deleteSourceClients, allClients }: MergeClientsParams): Promise<MergeResult> => {
       const result: MergeResult = {
         revenuesMerged: 0,
         contractsMerged: 0,
         platformCostsMerged: 0,
         interactionsMerged: 0,
         alertsMerged: 0,
+        accountsMapped: 0,
         sourceClientsDeleted: 0,
       };
 
@@ -82,7 +85,25 @@ export function useMergeClients() {
       if (alertsError) throw new Error(`Erro ao mesclar alertas: ${alertsError.message}`);
       result.alertsMerged = alerts?.length || 0;
 
-      // 6. Delete or deactivate source clients
+      // 6. Salvar mapeamento de contas para clientes de origem
+      for (const sourceId of sourceClientIds) {
+        const sourceClient = allClients.find(c => c.id === sourceId);
+        if (sourceClient?.account_number) {
+          const { error: mappingError } = await supabase
+            .from('client_account_mappings')
+            .upsert({
+              client_id: targetClientId,
+              account_number: sourceClient.account_number,
+              original_client_name: sourceClient.name,
+            }, { onConflict: 'account_number' });
+
+          if (!mappingError) {
+            result.accountsMapped++;
+          }
+        }
+      }
+
+      // 7. Delete or deactivate source clients
       if (deleteSourceClients) {
         const { error: deleteError } = await supabase
           .from('clients')
@@ -111,13 +132,15 @@ export function useMergeClients() {
       queryClient.invalidateQueries({ queryKey: ['interactions'] });
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
       queryClient.invalidateQueries({ queryKey: ['clientMetrics'] });
+      queryClient.invalidateQueries({ queryKey: ['accountMappings'] });
 
       const totalMerged = result.revenuesMerged + result.contractsMerged + 
                           result.platformCostsMerged + result.interactionsMerged + 
                           result.alertsMerged;
 
+      const mappedMsg = result.accountsMapped > 0 ? `, ${result.accountsMapped} conta(s) mapeada(s)` : '';
       toast.success(
-        `Merge concluído! ${totalMerged} registros transferidos${result.sourceClientsDeleted > 0 ? ` e ${result.sourceClientsDeleted} cliente(s) excluído(s)` : ''}.`
+        `Merge concluído! ${totalMerged} registros transferidos${mappedMsg}${result.sourceClientsDeleted > 0 ? ` e ${result.sourceClientsDeleted} cliente(s) excluído(s)` : ''}.`
       );
     },
     onError: (error: Error) => {
