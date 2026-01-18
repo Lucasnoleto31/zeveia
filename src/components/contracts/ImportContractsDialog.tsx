@@ -334,6 +334,31 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
     (c) => c.isValid && c.needsClientCreation
   ).length;
 
+  // Agrupar erros por tipo
+  const errorBreakdown = parsedData
+    .filter((c) => !c.isValid)
+    .reduce((acc, contract) => {
+      contract.errors.forEach((error) => {
+        acc[error] = (acc[error] || 0) + 1;
+      });
+      return acc;
+    }, {} as Record<string, number>);
+
+  // Coletar valores únicos que causam erros
+  const missingAssets = [...new Set(
+    parsedData
+      .filter((c) => c.errors.includes('Ativo não encontrado'))
+      .map((c) => c.assetCode)
+      .filter(Boolean)
+  )];
+
+  const missingPlatforms = [...new Set(
+    parsedData
+      .filter((c) => c.errors.includes('Plataforma não encontrada'))
+      .map((c) => c.platformName)
+      .filter(Boolean)
+  )];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
@@ -359,27 +384,48 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             <Download className="h-4 w-4 mr-2" />
             Baixar
           </Button>
-        </div>
+            </div>
 
-        {/* Upload Area */}
-        {parsedData.length === 0 && (
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              isDragActive
-                ? 'border-primary bg-primary/5'
-                : 'border-muted-foreground/25 hover:border-primary'
-            }`}
-          >
-            <input {...getInputProps()} />
-            <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
-            <p className="text-sm text-muted-foreground">
-              {isDragActive
-                ? 'Solte o arquivo aqui...'
-                : 'Arraste um arquivo Excel ou clique para selecionar'}
-            </p>
-          </div>
-        )}
+            {/* Detalhamento de erros */}
+            {invalidCount > 0 && (
+              <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg space-y-3">
+                <p className="font-medium text-destructive">Resumo dos {invalidCount} erros:</p>
+                <div className="space-y-2 text-sm">
+                  {Object.entries(errorBreakdown).map(([error, count]) => (
+                    <div key={error} className="flex justify-between">
+                      <span>{error}</span>
+                      <Badge variant="destructive">{count}</Badge>
+                    </div>
+                  ))}
+                </div>
+                
+                {missingAssets.length > 0 && (
+                  <div className="pt-2 border-t border-destructive/20">
+                    <p className="text-xs font-medium text-destructive mb-1">Ativos não cadastrados:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {missingAssets.map((asset) => (
+                        <Badge key={asset} variant="outline" className="text-xs font-mono">
+                          {asset}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {missingPlatforms.length > 0 && (
+                  <div className="pt-2 border-t border-destructive/20">
+                    <p className="text-xs font-medium text-destructive mb-1">Plataformas não cadastradas:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {missingPlatforms.map((platform) => (
+                        <Badge key={platform} variant="outline" className="text-xs">
+                          {platform}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
         {/* Processing */}
         {isProcessing && progress > 0 && (
