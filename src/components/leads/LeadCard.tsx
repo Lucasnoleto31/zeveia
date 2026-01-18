@@ -1,5 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { useNavigate } from 'react-router-dom';
 import { Lead } from '@/types/database';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,9 +13,9 @@ import {
   GripVertical, 
   Pencil,
   Calendar,
-  User
+  ExternalLink
 } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface LeadCardProps {
@@ -24,6 +25,7 @@ interface LeadCardProps {
 }
 
 export function LeadCard({ lead, onEdit, isDragging }: LeadCardProps) {
+  const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: lead.id,
     disabled: lead.status === 'convertido' || lead.status === 'perdido',
@@ -37,12 +39,20 @@ export function LeadCard({ lead, onEdit, isDragging }: LeadCardProps) {
 
   const isFinalized = lead.status === 'convertido' || lead.status === 'perdido';
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on edit button or drag handle
+    if ((e.target as HTMLElement).closest('button')) return;
+    navigate(`/leads/${lead.id}`);
+  };
+
   return (
     <Card
       ref={setNodeRef}
       style={style}
+      onClick={handleCardClick}
       className={cn(
-        'cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md',
+        'cursor-pointer transition-shadow hover:shadow-md',
+        !isFinalized && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-50 shadow-lg rotate-2',
         isFinalized && 'opacity-70 cursor-default'
       )}
@@ -62,16 +72,26 @@ export function LeadCard({ lead, onEdit, isDragging }: LeadCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <h4 className="font-medium text-sm truncate">{lead.name}</h4>
-              {onEdit && !isFinalized && (
+              <div className="flex items-center gap-1">
+                {onEdit && !isFinalized && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 shrink-0"
-                  onClick={onEdit}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/leads/${lead.id}`); }}
                 >
-                  <Pencil className="h-3 w-3" />
+                  <ExternalLink className="h-3 w-3" />
                 </Button>
-              )}
+              </div>
             </div>
           </div>
         </div>
