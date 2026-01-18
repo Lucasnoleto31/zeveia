@@ -22,12 +22,13 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useImportRevenues } from '@/hooks/useRevenues';
-import { useClients } from '@/hooks/useClients';
+import { useClients, useCreateClient } from '@/hooks/useClients';
 import { useProducts, useSubproducts } from '@/hooks/useConfiguration';
 import { findClientMatch, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
 import { parseExcelDate } from '@/utils/excelDateParser';
 import { MatchConfidenceBadge } from '@/components/imports/MatchConfidenceBadge';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Upload,
   FileSpreadsheet,
@@ -35,11 +36,19 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  UserPlus,
 } from 'lucide-react';
 
 interface ImportRevenuesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface ClientToCreate {
+  accountNumber?: string;
+  cpf?: string;
+  cnpj?: string;
+  name?: string;
 }
 
 interface ParsedRevenue {
@@ -60,10 +69,14 @@ interface ParsedRevenue {
   matchedClientName?: string;
   matchConfidence: MatchConfidence;
   matchMethod: MatchMethod;
+  needsClientCreation: boolean;
+  clientToCreate?: ClientToCreate;
 }
 
 export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialogProps) {
+  const { user } = useAuth();
   const importRevenues = useImportRevenues();
+  const createClient = useCreateClient();
   const { data: clients } = useClients({});
   const { data: products } = useProducts();
   const { data: subproducts } = useSubproducts();
@@ -133,6 +146,8 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
           let matchedClientName: string | undefined;
           let matchConfidence: MatchConfidence = null;
           let matchMethod: MatchMethod = null;
+          let needsClientCreation = false;
+          let clientToCreate: ClientToCreate | undefined;
 
           if (clients) {
             const matchResult = findClientMatch(clients, {
@@ -148,7 +163,14 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
               matchConfidence = matchResult.confidence;
               matchMethod = matchResult.matchedBy;
             } else {
-              errors.push('Cliente não encontrado');
+              // Cliente não encontrado - marcar para criação automática como inativo
+              needsClientCreation = true;
+              clientToCreate = {
+                accountNumber,
+                cpf,
+                cnpj,
+                name: clientName,
+              };
             }
           }
 
@@ -183,6 +205,8 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
             matchedClientName,
             matchConfidence,
             matchMethod,
+            needsClientCreation,
+            clientToCreate,
           };
         });
 
@@ -217,6 +241,43 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
     setProgress(0);
 
     try {
+      // 1. Identificar clientes que precisam ser criados
+      const revenuesNeedingClients = validRevenues.filter(r => r.needsClientCreation);
+      
+      // 2. Agrupar por identificador único (conta/cpf/cnpj/nome)
+      const uniqueClientsToCreate = new Map<string, ClientToCreate>();
+      revenuesNeedingClients.forEach(r => {
+        const key = r.clientToCreate?.accountNumber || 
+                    r.clientToCreate?.cpf || 
+                    r.clientToCreate?.cnpj ||
+                    r.clientToCreate?.name;
+        if (key && !uniqueClientsToCreate.has(key)) {
+          uniqueClientsToCreate.set(key, r.clientToCreate!);
+        }
+      });
+
+      // 3. Criar clientes inativos
+      const createdClientIds = new Map<string, string>();
+      let clientsCreated = 0;
+      const totalClients = uniqueClientsToCreate.size;
+      
+      for (const [key, clientData] of uniqueClientsToCreate) {
+        const isPJ = !!clientData.cnpj;
+        const newClient = await createClient.mutateAsync({
+          type: isPJ ? 'pj' : 'pf',
+          name: clientData.name || `Cliente ${clientData.accountNumber || clientData.cpf || clientData.cnpj}`,
+          account_number: clientData.accountNumber || null,
+          cpf: clientData.cpf || null,
+          cnpj: clientData.cnpj || null,
+          active: false, // INATIVO - cliente que já migrou
+          assessor_id: user!.id,
+        });
+        createdClientIds.set(key, newClient.id);
+        clientsCreated++;
+        setProgress(Math.round((clientsCreated / (totalClients + validRevenues.length)) * 50));
+      }
+
+      // 4. Mapear receitas para os client_ids (existentes ou criados)
       const revenuesToImport = validRevenues.map((revenue) => {
         const product = products?.find(
           (p) => p.name.toLowerCase() === revenue.productName?.toLowerCase()
@@ -225,9 +286,21 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
           (s) => s.name.toLowerCase() === revenue.subproductName?.toLowerCase()
         );
 
+        let clientId = revenue.matchedClientId;
+        
+        if (revenue.needsClientCreation && revenue.clientToCreate) {
+          const key = revenue.clientToCreate.accountNumber || 
+                      revenue.clientToCreate.cpf || 
+                      revenue.clientToCreate.cnpj ||
+                      revenue.clientToCreate.name;
+          if (key) {
+            clientId = createdClientIds.get(key);
+          }
+        }
+
         return {
           date: revenue.date,
-          client_id: revenue.matchedClientId!,
+          client_id: clientId!,
           product_id: product!.id,
           subproduct_id: subproduct?.id || null,
           gross_revenue: revenue.grossRevenue,
@@ -237,15 +310,16 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
         };
       });
 
-      // Import in batches
+      // 5. Importar receitas em lotes
       const batchSize = 100;
       for (let i = 0; i < revenuesToImport.length; i += batchSize) {
         const batch = revenuesToImport.slice(i, i + batchSize);
         await importRevenues.mutateAsync(batch);
-        setProgress(Math.round(((i + batch.length) / revenuesToImport.length) * 100));
+        setProgress(50 + Math.round(((i + batch.length) / revenuesToImport.length) * 50));
       }
 
-      toast.success(`${validRevenues.length} receitas importadas com sucesso!`);
+      const clientMsg = totalClients > 0 ? ` e ${totalClients} clientes inativos criados` : '';
+      toast.success(`${validRevenues.length} receitas importadas${clientMsg}!`);
       onOpenChange(false);
       setParsedData([]);
     } catch (error: any) {
@@ -261,6 +335,14 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
   const lowConfidenceCount = parsedData.filter(
     (r) => r.isValid && r.matchConfidence === 'low'
   ).length;
+  
+  // Contar clientes únicos que serão criados
+  const clientsToCreateCount = new Set(
+    parsedData
+      .filter(r => r.isValid && r.needsClientCreation)
+      .map(r => r.clientToCreate?.accountNumber || r.clientToCreate?.cpf || r.clientToCreate?.cnpj || r.clientToCreate?.name)
+      .filter(Boolean)
+  ).size;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -336,6 +418,14 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
                   <span className="font-medium text-green-600">{validCount}</span> receitas válidas
                 </AlertDescription>
               </Alert>
+              {clientsToCreateCount > 0 && (
+                <Alert className="flex-1 min-w-[140px]">
+                  <UserPlus className="h-4 w-4 text-yellow-500" />
+                  <AlertDescription>
+                    <span className="font-medium text-yellow-600">{clientsToCreateCount}</span> clientes a criar (inativos)
+                  </AlertDescription>
+                </Alert>
+              )}
               {lowConfidenceCount > 0 && (
                 <Alert className="flex-1 min-w-[140px]">
                   <XCircle className="h-4 w-4 text-orange-500" />
@@ -373,23 +463,35 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
                       className={
                         !revenue.isValid 
                           ? 'bg-destructive/5' 
-                          : revenue.matchConfidence === 'low' 
-                            ? 'bg-orange-50 dark:bg-orange-950/20' 
-                            : ''
+                          : revenue.needsClientCreation
+                            ? 'bg-yellow-50 dark:bg-yellow-950/20'
+                            : revenue.matchConfidence === 'low' 
+                              ? 'bg-orange-50 dark:bg-orange-950/20' 
+                              : ''
                       }
                     >
                       <TableCell>
-                        <MatchConfidenceBadge
-                          confidence={revenue.matchConfidence}
-                          matchedBy={revenue.matchMethod}
-                          clientName={revenue.matchedClientName}
-                        />
+                        {revenue.needsClientCreation ? (
+                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 text-[10px]">
+                            <UserPlus className="h-3 w-3 mr-1" />
+                            Novo
+                          </Badge>
+                        ) : (
+                          <MatchConfidenceBadge
+                            confidence={revenue.matchConfidence}
+                            matchedBy={revenue.matchMethod}
+                            clientName={revenue.matchedClientName}
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {revenue.date}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {revenue.matchedClientName || revenue.clientName || '-'}
+                        {revenue.needsClientCreation 
+                          ? <span className="text-yellow-700">{revenue.clientName || revenue.accountNumber || revenue.cpf || revenue.cnpj || '-'}</span>
+                          : (revenue.matchedClientName || revenue.clientName || '-')
+                        }
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{revenue.productName || '-'}</Badge>
