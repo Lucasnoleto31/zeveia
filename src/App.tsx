@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,7 +31,22 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              {/* Placeholder routes */}
+              <Route path="/leads" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/clients" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/clients/:id" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/partners" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/partners/:id" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/revenues" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/contracts" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/platforms" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/goals" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/alerts" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/reports/funnel" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/reports/performance" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/reports/roi" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute requireSocio><ComingSoon /></ProtectedRoute>} />
+              {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
