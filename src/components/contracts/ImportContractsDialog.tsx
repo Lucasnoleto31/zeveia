@@ -24,6 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { useImportContracts } from '@/hooks/useContracts';
 import { useClients } from '@/hooks/useClients';
 import { useAssets, usePlatforms } from '@/hooks/useConfiguration';
+import { findClientMatch, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
+import { MatchConfidenceBadge } from '@/components/imports/MatchConfidenceBadge';
 import { toast } from 'sonner';
 import {
   Upload,
@@ -41,18 +43,25 @@ interface ImportContractsDialogProps {
 
 interface ParsedContract {
   date: string;
-  clientName: string;
+  accountNumber?: string;
+  cpf?: string;
+  cnpj?: string;
+  clientName?: string;
   assetCode: string;
   platformName: string;
   lotsTraded: number;
   lotsZeroed: number;
   isValid: boolean;
   errors: string[];
+  matchedClientId?: string;
+  matchedClientName?: string;
+  matchConfidence: MatchConfidence;
+  matchMethod: MatchMethod;
 }
 
 export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDialogProps) {
   const importContracts = useImportContracts();
-  const { data: clients } = useClients({ active: true });
+  const { data: clients } = useClients({});
   const { data: assets } = useAssets();
   const { data: platforms } = usePlatforms();
 
@@ -64,7 +73,10 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
     const template = [
       {
         Data: '2024-01-15',
-        Cliente: 'Nome do Cliente',
+        'Número Conta': '123456',
+        CPF: '',
+        CNPJ: '',
+        Cliente: '',
         Ativo: 'WIN',
         Plataforma: 'Nome da Plataforma',
         'Lotes Operados': 100,
@@ -94,6 +106,9 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
           const errors: string[] = [];
 
           const date = row['Data']?.toString().trim();
+          const accountNumber = row['Número Conta']?.toString().trim() || row['Numero Conta']?.toString().trim();
+          const cpf = row['CPF']?.toString().trim();
+          const cnpj = row['CNPJ']?.toString().trim();
           const clientName = row['Cliente']?.toString().trim();
           const assetCode = row['Ativo']?.toString().trim().toUpperCase();
           const platformName = row['Plataforma']?.toString().trim();
@@ -105,12 +120,28 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             errors.push('Data inválida (use YYYY-MM-DD)');
           }
 
-          // Validate client exists
-          const client = clients?.find(
-            (c) => c.name.toLowerCase() === clientName?.toLowerCase()
-          );
-          if (!client) {
-            errors.push('Cliente não encontrado');
+          // Find client using hierarchical matching
+          let matchedClientId: string | undefined;
+          let matchedClientName: string | undefined;
+          let matchConfidence: MatchConfidence = null;
+          let matchMethod: MatchMethod = null;
+
+          if (clients) {
+            const matchResult = findClientMatch(clients, {
+              accountNumber,
+              cpf,
+              cnpj,
+              name: clientName,
+            });
+
+            if (matchResult.client) {
+              matchedClientId = matchResult.client.id;
+              matchedClientName = matchResult.client.name;
+              matchConfidence = matchResult.confidence;
+              matchMethod = matchResult.matchedBy;
+            } else {
+              errors.push('Cliente não encontrado');
+            }
           }
 
           // Validate asset exists
@@ -136,6 +167,9 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
 
           return {
             date,
+            accountNumber,
+            cpf,
+            cnpj,
             clientName,
             assetCode,
             platformName,
@@ -143,6 +177,10 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             lotsZeroed,
             isValid: errors.length === 0,
             errors,
+            matchedClientId,
+            matchedClientName,
+            matchConfidence,
+            matchMethod,
           };
         });
 
@@ -178,9 +216,6 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
 
     try {
       const contractsToImport = validContracts.map((contract) => {
-        const client = clients?.find(
-          (c) => c.name.toLowerCase() === contract.clientName?.toLowerCase()
-        );
         const asset = assets?.find(
           (a) => a.code.toLowerCase() === contract.assetCode?.toLowerCase()
         );
@@ -190,7 +225,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
 
         return {
           date: contract.date,
-          client_id: client!.id,
+          client_id: contract.matchedClientId!,
           asset_id: asset!.id,
           platform_id: platform!.id,
           lots_traded: contract.lotsTraded,
@@ -219,14 +254,17 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
 
   const validCount = parsedData.filter((c) => c.isValid).length;
   const invalidCount = parsedData.filter((c) => !c.isValid).length;
+  const lowConfidenceCount = parsedData.filter(
+    (c) => c.isValid && c.matchConfidence === 'low'
+  ).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Importar Contratos</DialogTitle>
           <DialogDescription>
-            Faça upload de um arquivo Excel com os dados dos contratos
+            Faça upload de um arquivo Excel. Use Número da Conta, CPF/CNPJ ou Nome do Cliente para vincular.
           </DialogDescription>
         </DialogHeader>
 
@@ -237,7 +275,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             <div>
               <p className="text-sm font-medium">Modelo de Importação</p>
               <p className="text-xs text-muted-foreground">
-                Baixe o modelo com as colunas corretas
+                Prioridade: Número Conta → CPF/CNPJ → Nome
               </p>
             </div>
           </div>
@@ -280,16 +318,23 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
         {/* Preview */}
         {parsedData.length > 0 && (
           <>
-            <div className="flex gap-4">
-              <Alert className="flex-1">
+            <div className="flex gap-4 flex-wrap">
+              <Alert className="flex-1 min-w-[140px]">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                 <AlertDescription>
-                  <span className="font-medium text-green-600">{validCount}</span> contratos
-                  válidos
+                  <span className="font-medium text-green-600">{validCount}</span> contratos válidos
                 </AlertDescription>
               </Alert>
+              {lowConfidenceCount > 0 && (
+                <Alert className="flex-1 min-w-[140px]">
+                  <XCircle className="h-4 w-4 text-orange-500" />
+                  <AlertDescription>
+                    <span className="font-medium text-orange-600">{lowConfidenceCount}</span> por nome (verificar)
+                  </AlertDescription>
+                </Alert>
+              )}
               {invalidCount > 0 && (
-                <Alert className="flex-1" variant="destructive">
+                <Alert className="flex-1 min-w-[140px]" variant="destructive">
                   <XCircle className="h-4 w-4" />
                   <AlertDescription>
                     <span className="font-medium">{invalidCount}</span> com erros
@@ -302,7 +347,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-8"></TableHead>
+                    <TableHead className="w-8">Match</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Ativo</TableHead>
@@ -316,20 +361,26 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
                   {parsedData.slice(0, 50).map((contract, index) => (
                     <TableRow
                       key={index}
-                      className={!contract.isValid ? 'bg-destructive/5' : ''}
+                      className={
+                        !contract.isValid 
+                          ? 'bg-destructive/5' 
+                          : contract.matchConfidence === 'low' 
+                            ? 'bg-orange-50 dark:bg-orange-950/20' 
+                            : ''
+                      }
                     >
                       <TableCell>
-                        {contract.isValid ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-destructive" />
-                        )}
+                        <MatchConfidenceBadge
+                          confidence={contract.matchConfidence}
+                          matchedBy={contract.matchMethod}
+                          clientName={contract.matchedClientName}
+                        />
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {contract.date}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {contract.clientName || '-'}
+                        {contract.matchedClientName || contract.clientName || '-'}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono">
