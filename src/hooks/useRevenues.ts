@@ -1,0 +1,182 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Revenue } from '@/types/database';
+
+interface RevenueFilters {
+  clientId?: string;
+  productId?: string;
+  subproductId?: string;
+  startDate?: string;
+  endDate?: string;
+  assessorId?: string;
+  partnerId?: string;
+}
+
+export function useRevenues(filters?: RevenueFilters) {
+  return useQuery({
+    queryKey: ['revenues', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('revenues')
+        .select(`
+          *,
+          client:clients(*),
+          product:products(*),
+          subproduct:subproducts(*)
+        `)
+        .order('date', { ascending: false });
+
+      if (filters?.clientId) {
+        query = query.eq('client_id', filters.clientId);
+      }
+
+      if (filters?.productId) {
+        query = query.eq('product_id', filters.productId);
+      }
+
+      if (filters?.subproductId) {
+        query = query.eq('subproduct_id', filters.subproductId);
+      }
+
+      if (filters?.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+
+      if (filters?.endDate) {
+        query = query.lte('date', filters.endDate);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as Revenue[];
+    },
+  });
+}
+
+export function useRevenue(id: string) {
+  return useQuery({
+    queryKey: ['revenues', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('revenues')
+        .select(`
+          *,
+          client:clients(*),
+          product:products(*),
+          subproduct:subproducts(*)
+        `)
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data as Revenue;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateRevenue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (revenue: Omit<Revenue, 'id' | 'created_at' | 'updated_at' | 'client' | 'product' | 'subproduct'>) => {
+      const { data, error } = await supabase
+        .from('revenues')
+        .insert(revenue)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['revenues'] }),
+  });
+}
+
+export function useUpdateRevenue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...revenue }: Partial<Revenue> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('revenues')
+        .update(revenue)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['revenues'] }),
+  });
+}
+
+export function useDeleteRevenue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('revenues')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['revenues'] }),
+  });
+}
+
+export function useImportRevenues() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (revenues: Omit<Revenue, 'id' | 'created_at' | 'updated_at' | 'client' | 'product' | 'subproduct'>[]) => {
+      const { data, error } = await supabase
+        .from('revenues')
+        .insert(revenues)
+        .select();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['revenues'] }),
+  });
+}
+
+// Aggregated revenue data
+export function useRevenueStats(filters?: RevenueFilters) {
+  return useQuery({
+    queryKey: ['revenueStats', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('revenues')
+        .select(`
+          date,
+          our_share,
+          product:products(name)
+        `);
+
+      if (filters?.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+
+      if (filters?.endDate) {
+        query = query.lte('date', filters.endDate);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Group by month
+      const byMonth: Record<string, number> = {};
+      const byProduct: Record<string, number> = {};
+
+      data?.forEach((r: any) => {
+        const month = r.date.slice(0, 7);
+        byMonth[month] = (byMonth[month] || 0) + Number(r.our_share);
+        
+        const productName = r.product?.name || 'Sem produto';
+        byProduct[productName] = (byProduct[productName] || 0) + Number(r.our_share);
+      });
+
+      return {
+        total: data?.reduce((sum, r) => sum + Number(r.our_share), 0) || 0,
+        byMonth: Object.entries(byMonth).map(([month, value]) => ({ month, value })).sort((a, b) => a.month.localeCompare(b.month)),
+        byProduct: Object.entries(byProduct).map(([name, value]) => ({ name, value })),
+      };
+    },
+  });
+}
