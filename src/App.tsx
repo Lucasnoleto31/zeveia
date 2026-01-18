@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import LeadsPage from "./pages/LeadsPage";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -32,7 +33,7 @@ const App = () => (
                 }
               />
               {/* Placeholder routes */}
-              <Route path="/leads" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
               <Route path="/clients" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/clients/:id" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/partners" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
