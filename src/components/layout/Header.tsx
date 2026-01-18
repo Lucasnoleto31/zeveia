@@ -17,24 +17,37 @@ import { Moon, Sun, LogOut, User, Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
-  title?: string;
+  title?: React.ReactNode;
+  actions?: React.ReactNode;
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, actions }: HeaderProps) {
   const { profile, isSocio, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { data: unreadCount = 0 } = useUnreadAlertsCount();
   const navigate = useNavigate();
 
   return (
-    <header className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
+    <header className="sticky top-0 z-50 flex h-auto min-h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2">
       <SidebarTrigger className="-ml-1" />
       
       {title && (
-        <h1 className="text-lg font-semibold">{title}</h1>
+        <div className="flex-1 min-w-0">
+          {typeof title === 'string' ? (
+            <h1 className="text-lg font-semibold">{title}</h1>
+          ) : (
+            title
+          )}
+        </div>
       )}
 
-      <div className="flex-1" />
+      {!title && <div className="flex-1" />}
+
+      {actions && (
+        <div className="flex items-center gap-2 shrink-0">
+          {actions}
+        </div>
+      )}
 
       {/* Theme Toggle */}
       <Button

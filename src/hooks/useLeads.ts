@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Lead, LeadStatus } from '@/types/database';
+import { differenceInDays } from 'date-fns';
 
 interface LeadFilters {
   search?: string;
@@ -148,5 +149,75 @@ export function useImportLeads() {
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads'] }),
+  });
+}
+
+interface InteractionWithUser {
+  id: string;
+  lead_id: string;
+  type: string;
+  content: string;
+  created_at: string;
+  user_id: string;
+  userName: string;
+}
+
+interface LeadMetrics {
+  totalInteractions: number;
+  lastInteraction: { created_at: string; type: string } | null;
+  interactions: InteractionWithUser[];
+  daysSinceLastInteraction: number | null;
+}
+
+export function useLeadMetrics(leadId: string) {
+  return useQuery({
+    queryKey: ['leadMetrics', leadId],
+    queryFn: async (): Promise<LeadMetrics> => {
+      // Fetch interactions for the lead
+      const { data: interactions, error: interactionsError } = await supabase
+        .from('interactions')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false });
+
+      if (interactionsError) throw interactionsError;
+
+      // Get unique user ids
+      const userIds = [...new Set((interactions || []).map(i => i.user_id))];
+      
+      let profilesMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, name')
+          .in('user_id', userIds);
+
+        profilesMap = new Map((profiles || []).map(p => [p.user_id, p.name]));
+      }
+
+      const totalInteractions = interactions?.length || 0;
+      const lastInteraction = interactions?.[0] || null;
+
+      // Map interactions with user names
+      const interactionsWithUser: InteractionWithUser[] = (interactions || []).map(i => ({
+        id: i.id,
+        lead_id: i.lead_id || '',
+        type: i.type,
+        content: i.content,
+        created_at: i.created_at,
+        user_id: i.user_id,
+        userName: profilesMap.get(i.user_id) || 'Usuário',
+      }));
+
+      return {
+        totalInteractions,
+        lastInteraction: lastInteraction ? { created_at: lastInteraction.created_at, type: lastInteraction.type } : null,
+        interactions: interactionsWithUser,
+        daysSinceLastInteraction: lastInteraction
+          ? differenceInDays(new Date(), new Date(lastInteraction.created_at))
+          : null,
+      };
+    },
+    enabled: !!leadId,
   });
 }
