@@ -55,9 +55,10 @@ const managementItems = [
 ];
 
 const reportItems = [
-  { title: 'Funil de Vendas', url: '/reports/funnel', icon: BarChart3 },
-  { title: 'Performance', url: '/reports/performance', icon: BarChart3 },
-  { title: 'ROI Parceiros', url: '/reports/roi', icon: BarChart3 },
+  { title: 'Leads', url: '/reports/funnel', icon: BarChart3 },
+  { title: 'Assessores', url: '/reports/performance', icon: BarChart3 },
+  { title: 'Parceiros', url: '/reports/roi', icon: BarChart3 },
+  { title: 'Clientes', url: '/reports/clients', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
