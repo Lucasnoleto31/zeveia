@@ -12,11 +12,92 @@ interface ClientFilters {
   active?: boolean;
   minPatrimony?: number;
   maxPatrimony?: number;
+  page?: number;
+  pageSize?: number;
 }
 
-export function useClients(filters?: ClientFilters) {
+export interface PaginatedResult<T> {
+  data: T[];
+  totalCount: number;
+  totalPages: number;
+}
+
+// Paginated clients for listing pages
+export function useClientsPaginated(filters?: ClientFilters): ReturnType<typeof useQuery<PaginatedResult<Client>>> {
+  const page = filters?.page || 1;
+  const pageSize = filters?.pageSize || 50;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   return useQuery({
-    queryKey: ['clients', filters],
+    queryKey: ['clients', 'paginated', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('clients')
+        .select(`
+          *,
+          origin:origins(*),
+          campaign:campaigns(*),
+          partner:partners(*)
+        `, { count: 'exact' })
+        .order('name')
+        .range(from, to);
+
+      if (filters?.search) {
+        query = query.or(`name.ilike.%${filters.search}%,cpf.ilike.%${filters.search}%,cnpj.ilike.%${filters.search}%,email.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`);
+      }
+
+      if (filters?.type) {
+        query = query.eq('type', filters.type);
+      }
+
+      if (filters?.assessorId) {
+        query = query.eq('assessor_id', filters.assessorId);
+      }
+
+      if (filters?.profile) {
+        query = query.eq('profile', filters.profile);
+      }
+
+      if (filters?.state) {
+        query = query.eq('state', filters.state);
+      }
+
+      if (filters?.partnerId) {
+        query = query.eq('partner_id', filters.partnerId);
+      }
+
+      if (filters?.active !== undefined) {
+        query = query.eq('active', filters.active);
+      }
+
+      if (filters?.minPatrimony !== undefined) {
+        query = query.gte('patrimony', filters.minPatrimony);
+      }
+
+      if (filters?.maxPatrimony !== undefined) {
+        query = query.lte('patrimony', filters.maxPatrimony);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      
+      const totalCount = count || 0;
+      const totalPages = Math.ceil(totalCount / pageSize);
+      
+      return {
+        data: data as Client[],
+        totalCount,
+        totalPages,
+      };
+    },
+  });
+}
+
+// Non-paginated clients for dropdowns, imports, etc.
+export function useClients(filters?: Omit<ClientFilters, 'page' | 'pageSize'>) {
+  return useQuery({
+    queryKey: ['clients', 'all', filters],
     queryFn: async () => {
       let query = supabase
         .from('clients')
@@ -84,9 +165,9 @@ export function useClient(id: string) {
           partner:partners(*)
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as Client;
+      return data as Client | null;
     },
     enabled: !!id,
   });

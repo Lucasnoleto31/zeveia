@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Revenue } from '@/types/database';
+import { PaginatedResult } from './useClients';
 
 interface RevenueFilters {
   clientId?: string;
@@ -10,11 +11,70 @@ interface RevenueFilters {
   endDate?: string;
   assessorId?: string;
   partnerId?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-export function useRevenues(filters?: RevenueFilters) {
+// Paginated revenues for listing pages
+export function useRevenuesPaginated(filters?: RevenueFilters): ReturnType<typeof useQuery<PaginatedResult<Revenue>>> {
+  const page = filters?.page || 1;
+  const pageSize = filters?.pageSize || 50;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   return useQuery({
-    queryKey: ['revenues', filters],
+    queryKey: ['revenues', 'paginated', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('revenues')
+        .select(`
+          *,
+          client:clients(*),
+          product:products(*),
+          subproduct:subproducts(*)
+        `, { count: 'exact' })
+        .order('date', { ascending: false })
+        .range(from, to);
+
+      if (filters?.clientId) {
+        query = query.eq('client_id', filters.clientId);
+      }
+
+      if (filters?.productId) {
+        query = query.eq('product_id', filters.productId);
+      }
+
+      if (filters?.subproductId) {
+        query = query.eq('subproduct_id', filters.subproductId);
+      }
+
+      if (filters?.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+
+      if (filters?.endDate) {
+        query = query.lte('date', filters.endDate);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      
+      const totalCount = count || 0;
+      const totalPages = Math.ceil(totalCount / pageSize);
+      
+      return {
+        data: data as Revenue[],
+        totalCount,
+        totalPages,
+      };
+    },
+  });
+}
+
+// Non-paginated revenues for backwards compatibility
+export function useRevenues(filters?: Omit<RevenueFilters, 'page' | 'pageSize'>) {
+  return useQuery({
+    queryKey: ['revenues', 'all', filters],
     queryFn: async () => {
       let query = supabase
         .from('revenues')
@@ -66,9 +126,9 @@ export function useRevenue(id: string) {
           subproduct:subproducts(*)
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as Revenue;
+      return data as Revenue | null;
     },
     enabled: !!id,
   });
