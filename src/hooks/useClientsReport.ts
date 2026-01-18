@@ -57,6 +57,96 @@ interface ClientsReportData {
   topByZeroed: ClientRanking[];
 }
 
+// Helper function to fetch all records with pagination
+async function fetchAllClients() {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*, partner:partners(name)')
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
+async function fetchAllRevenues(startDateStr: string) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('revenues')
+      .select('*, product:products(name)')
+      .gte('date', startDateStr)
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
+async function fetchAllContracts(startDateStr: string) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .gte('date', startDateStr)
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 export function useClientsReport(months: number = 12) {
   return useQuery({
     queryKey: ['clientsReport', months],
@@ -65,28 +155,14 @@ export function useClientsReport(months: number = 12) {
       const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
       const startDateStr = startDate.toISOString().split('T')[0];
       
-      // Fetch all clients
-      const { data: clients, error: clientsError } = await supabase
-        .from('clients')
-        .select('*, partner:partners(name)');
+      // Fetch all clients with pagination
+      const clients = await fetchAllClients();
       
-      if (clientsError) throw clientsError;
+      // Fetch all revenues in period with pagination
+      const revenues = await fetchAllRevenues(startDateStr);
       
-      // Fetch revenues in period
-      const { data: revenues, error: revenuesError } = await supabase
-        .from('revenues')
-        .select('*, product:products(name)')
-        .gte('date', startDateStr);
-      
-      if (revenuesError) throw revenuesError;
-      
-      // Fetch contracts in period
-      const { data: contracts, error: contractsError } = await supabase
-        .from('contracts')
-        .select('*')
-        .gte('date', startDateStr);
-      
-      if (contractsError) throw contractsError;
+      // Fetch all contracts in period with pagination
+      const contracts = await fetchAllContracts(startDateStr);
       
       // Calculate inactivity (60 days without revenue)
       const sixtyDaysAgo = new Date();

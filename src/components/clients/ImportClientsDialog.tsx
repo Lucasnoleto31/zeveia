@@ -21,7 +21,7 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useImportClients, useClients } from '@/hooks/useClients';
+import { useImportClients, useClients, useBulkUpdateClients } from '@/hooks/useClients';
 import { useOrigins, useCampaigns } from '@/hooks/useConfiguration';
 import { usePartners } from '@/hooks/usePartners';
 import { useAuth } from '@/contexts/AuthContext';
@@ -81,11 +81,14 @@ interface ParsedClient {
   warnings: string[];
   isDuplicate: boolean;
   isNewAccount: boolean;
+  isUpdate: boolean;
+  existingClientId?: string;
 }
 
 export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogProps) {
   const { user } = useAuth();
   const importClients = useImportClients();
+  const bulkUpdateClients = useBulkUpdateClients();
   const { data: existingClients } = useClients({});
   const { data: origins } = useOrigins();
   const { data: campaigns } = useCampaigns();
@@ -186,9 +189,11 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
           const campaign = row['Campanha']?.toString().trim();
           const partner = row['Parceiro']?.toString().trim();
 
-          // Check for duplicates
+          // Check for duplicates and updates
           let isDuplicate = false;
           let isNewAccount = false;
+          let isUpdate = false;
+          let existingClientId: string | undefined;
 
           if (existingClients) {
             const normalizedCpf = normalizeDocument(cpf);
@@ -197,7 +202,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
 
             // Check if same account number exists
             const existingByAccount = existingClients.find(
-              (c) => c.account_number?.toLowerCase().trim() === normalizedAccountNumber
+              (c) => c.account_number?.toLowerCase().trim() === normalizedAccountNumber && normalizedAccountNumber
             );
             
             // Check if same CPF/CNPJ exists
@@ -212,8 +217,10 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
             });
 
             if (existingByAccount) {
-              isDuplicate = true;
-              errors.push('Conta já cadastrada');
+              // Same account exists - mark for update (patrimony, etc)
+              isUpdate = true;
+              existingClientId = existingByAccount.id;
+              warnings.push('Patrimônio será atualizado');
             } else if (existingByDocument && !accountNumber) {
               isDuplicate = true;
               errors.push('CPF/CNPJ já cadastrado sem número de conta');
@@ -270,6 +277,8 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
             warnings,
             isDuplicate,
             isNewAccount,
+            isUpdate,
+            existingClientId,
           };
         });
 
@@ -309,7 +318,15 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
     setProgress(0);
 
     try {
-      const clientsToImport = validClients.map(client => {
+      // Separate new clients from updates
+      const newClients = validClients.filter(c => !c.isUpdate);
+      const updateClients = validClients.filter(c => c.isUpdate && c.existingClientId);
+      
+      const totalOperations = newClients.length + updateClients.length;
+      let completedOperations = 0;
+
+      // Prepare new clients for import
+      const clientsToImport = newClients.map(client => {
         const originId = origins?.find(o => o.name.toLowerCase() === client.origin?.toLowerCase())?.id;
         const campaignId = campaigns?.find(c => c.name.toLowerCase() === client.campaign?.toLowerCase())?.id;
         const partnerId = partners?.find(p => p.name.toLowerCase() === client.partner?.toLowerCase())?.id;
@@ -340,15 +357,40 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
         return base;
       });
 
-      // Import in batches
+      // Import new clients in batches
       const batchSize = 100;
       for (let i = 0; i < clientsToImport.length; i += batchSize) {
         const batch = clientsToImport.slice(i, i + batchSize);
         await importClients.mutateAsync(batch);
-        setProgress(Math.round(((i + batch.length) / clientsToImport.length) * 100));
+        completedOperations += batch.length;
+        setProgress(Math.round((completedOperations / totalOperations) * 100));
       }
 
-      toast.success(`${validClients.length} clientes importados com sucesso!`);
+      // Update existing clients (patrimony and other fields)
+      if (updateClients.length > 0) {
+        const updates = updateClients.map(client => ({
+          id: client.existingClientId!,
+          patrimony: parseBrazilianNumber(client.patrimony),
+          email: client.email || undefined,
+          phone: client.phone || undefined,
+          state: client.state || undefined,
+          profile: client.profile || undefined,
+        }));
+
+        // Update in batches
+        for (let i = 0; i < updates.length; i += batchSize) {
+          const batch = updates.slice(i, i + batchSize);
+          await bulkUpdateClients.mutateAsync(batch);
+          completedOperations += batch.length;
+          setProgress(Math.round((completedOperations / totalOperations) * 100));
+        }
+      }
+
+      const messages = [];
+      if (newClients.length > 0) messages.push(`${newClients.length} novos`);
+      if (updateClients.length > 0) messages.push(`${updateClients.length} atualizados`);
+      
+      toast.success(`Clientes processados: ${messages.join(', ')}!`);
       onOpenChange(false);
       setParsedData([]);
     } catch (error: any) {
@@ -362,6 +404,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
   const validCount = parsedData.filter(c => c.isValid).length;
   const invalidCount = parsedData.filter(c => !c.isValid).length;
   const newAccountCount = parsedData.filter(c => c.isNewAccount && c.isValid).length;
+  const updateCount = parsedData.filter(c => c.isUpdate && c.isValid).length;
   const matchedPartnerCount = parsedData.filter(c => c.isValid && c.matchedPartnerId).length;
 
   return (
@@ -441,6 +484,14 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
                   <span className="font-medium text-green-600">{validCount}</span> clientes válidos
                 </AlertDescription>
               </Alert>
+              {updateCount > 0 && (
+                <Alert className="flex-1 min-w-[140px]">
+                  <AlertCircle className="h-4 w-4 text-orange-500" />
+                  <AlertDescription>
+                    <span className="font-medium text-orange-600">{updateCount}</span> atualizações
+                  </AlertDescription>
+                </Alert>
+              )}
               {newAccountCount > 0 && (
                 <Alert className="flex-1 min-w-[140px]">
                   <AlertCircle className="h-4 w-4 text-blue-500" />
@@ -487,9 +538,11 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
                       className={
                         !client.isValid 
                           ? 'bg-destructive/5' 
-                          : client.isNewAccount 
-                            ? 'bg-blue-50 dark:bg-blue-950/20' 
-                            : ''
+                          : client.isUpdate
+                            ? 'bg-orange-50 dark:bg-orange-950/20'
+                            : client.isNewAccount 
+                              ? 'bg-blue-50 dark:bg-blue-950/20' 
+                              : ''
                       }
                     >
                       <TableCell>
