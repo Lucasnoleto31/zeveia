@@ -383,6 +383,36 @@ export function useRevenuesReport(options: RevenuesReportOptions | number = 12) 
   });
 }
 
+// Helper function to fetch all revenues for a specific period with batch fetching
+async function fetchRevenuesForPeriod(startDate: string, endDate: string): Promise<any[]> {
+  const allRevenues: any[] = [];
+  const batchSize = 1000;
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('revenues')
+      .select('*, client:clients(id)')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true })
+      .range(from, from + batchSize - 1);
+
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allRevenues.push(...data);
+      from += batchSize;
+      hasMore = data.length === batchSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRevenues;
+}
+
 // Helper hook for month comparison
 export function useMonthComparison(month1: string | null, month2: string | null) {
   return useQuery({
@@ -394,21 +424,11 @@ export function useMonthComparison(month1: string | null, month2: string | null)
       const [month1Start, month1End] = getMonthRange(month1);
       const [month2Start, month2End] = getMonthRange(month2);
 
-      // Fetch revenues for both months
-      const { data: revenues1, error: error1 } = await supabase
-        .from('revenues')
-        .select('*, client:clients(id)')
-        .gte('date', month1Start)
-        .lte('date', month1End);
-
-      const { data: revenues2, error: error2 } = await supabase
-        .from('revenues')
-        .select('*, client:clients(id)')
-        .gte('date', month2Start)
-        .lte('date', month2End);
-
-      if (error1) throw error1;
-      if (error2) throw error2;
+      // Fetch all revenues for both months using batch fetching
+      const [revenues1, revenues2] = await Promise.all([
+        fetchRevenuesForPeriod(month1Start, month1End),
+        fetchRevenuesForPeriod(month2Start, month2End),
+      ]);
 
       const calcMetrics = (revenues: any[]) => ({
         gross: revenues.reduce((sum, r) => sum + Number(r.gross_revenue || 0), 0),
@@ -419,8 +439,8 @@ export function useMonthComparison(month1: string | null, month2: string | null)
         transactions: revenues.length,
       });
 
-      const metrics1 = calcMetrics(revenues1 || []);
-      const metrics2 = calcMetrics(revenues2 || []);
+      const metrics1 = calcMetrics(revenues1);
+      const metrics2 = calcMetrics(revenues2);
 
       const calcVariation = (v1: number, v2: number) => ({
         absolute: v2 - v1,
