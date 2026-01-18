@@ -9,6 +9,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import LeadsPage from "./pages/LeadsPage";
+import ClientsPage from "./pages/ClientsPage";
+import ClientDetailPage from "./pages/ClientDetailPage";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -34,8 +36,8 @@ const App = () => (
               />
               {/* Placeholder routes */}
               <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
-              <Route path="/clients" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-              <Route path="/clients/:id" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/clients" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
+              <Route path="/clients/:id" element={<ProtectedRoute><ClientDetailPage /></ProtectedRoute>} />
               <Route path="/partners" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/partners/:id" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/revenues" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
