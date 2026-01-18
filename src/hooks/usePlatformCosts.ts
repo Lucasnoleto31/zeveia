@@ -63,40 +63,63 @@ export function usePlatformCostsPaginated(filters?: PlatformCostFilters): Return
   });
 }
 
+// Batch fetch all platform costs to overcome 1000 record limit
+async function fetchAllPlatformCostsWithRelations(filters?: Omit<PlatformCostFilters, 'page' | 'pageSize'>) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('platform_costs')
+      .select(`
+        *,
+        client:clients(*),
+        platform:platforms(*)
+      `)
+      .order('date', { ascending: false })
+      .range(from, to);
+
+    if (filters?.clientId) {
+      query = query.eq('client_id', filters.clientId);
+    }
+
+    if (filters?.platformId) {
+      query = query.eq('platform_id', filters.platformId);
+    }
+
+    if (filters?.startDate) {
+      query = query.gte('date', filters.startDate);
+    }
+
+    if (filters?.endDate) {
+      query = query.lte('date', filters.endDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as PlatformCost[];
+}
+
 // Non-paginated platform costs for backwards compatibility
 export function usePlatformCosts(filters?: Omit<PlatformCostFilters, 'page' | 'pageSize'>) {
   return useQuery({
     queryKey: ['platformCosts', 'all', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('platform_costs')
-        .select(`
-          *,
-          client:clients(*),
-          platform:platforms(*)
-        `)
-        .order('date', { ascending: false });
-
-      if (filters?.clientId) {
-        query = query.eq('client_id', filters.clientId);
-      }
-
-      if (filters?.platformId) {
-        query = query.eq('platform_id', filters.platformId);
-      }
-
-      if (filters?.startDate) {
-        query = query.gte('date', filters.startDate);
-      }
-
-      if (filters?.endDate) {
-        query = query.lte('date', filters.endDate);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as PlatformCost[];
-    },
+    queryFn: async () => fetchAllPlatformCostsWithRelations(filters),
   });
 }
 
@@ -182,29 +205,55 @@ export function useImportPlatformCosts() {
   });
 }
 
+// Batch fetch platform costs for stats
+async function fetchPlatformCostsForStats(filters?: PlatformCostFilters) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('platform_costs')
+      .select(`
+        date,
+        value,
+        platform:platforms(name)
+      `)
+      .range(from, to);
+
+    if (filters?.startDate) {
+      query = query.gte('date', filters.startDate);
+    }
+
+    if (filters?.endDate) {
+      query = query.lte('date', filters.endDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 // Aggregated platform cost stats
 export function usePlatformCostStats(filters?: PlatformCostFilters) {
   return useQuery({
     queryKey: ['platformCostStats', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('platform_costs')
-        .select(`
-          date,
-          value,
-          platform:platforms(name)
-        `);
-
-      if (filters?.startDate) {
-        query = query.gte('date', filters.startDate);
-      }
-
-      if (filters?.endDate) {
-        query = query.lte('date', filters.endDate);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
+      const data = await fetchPlatformCostsForStats(filters);
 
       // Group by month
       const byMonth: Record<string, number> = {};

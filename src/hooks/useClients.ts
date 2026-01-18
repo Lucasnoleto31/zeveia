@@ -94,61 +94,84 @@ export function useClientsPaginated(filters?: ClientFilters): ReturnType<typeof 
   });
 }
 
+// Batch fetch all clients to overcome 1000 record limit
+async function fetchAllClientsWithRelations(filters?: Omit<ClientFilters, 'page' | 'pageSize'>) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('clients')
+      .select(`
+        *,
+        origin:origins(*),
+        campaign:campaigns(*),
+        partner:partners(*)
+      `)
+      .order('name')
+      .range(from, to);
+
+    if (filters?.search) {
+      query = query.or(`name.ilike.%${filters.search}%,cpf.ilike.%${filters.search}%,cnpj.ilike.%${filters.search}%,email.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`);
+    }
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    if (filters?.assessorId) {
+      query = query.eq('assessor_id', filters.assessorId);
+    }
+
+    if (filters?.profile) {
+      query = query.eq('profile', filters.profile);
+    }
+
+    if (filters?.state) {
+      query = query.eq('state', filters.state);
+    }
+
+    if (filters?.partnerId) {
+      query = query.eq('partner_id', filters.partnerId);
+    }
+
+    if (filters?.active !== undefined) {
+      query = query.eq('active', filters.active);
+    }
+
+    if (filters?.minPatrimony !== undefined) {
+      query = query.gte('patrimony', filters.minPatrimony);
+    }
+
+    if (filters?.maxPatrimony !== undefined) {
+      query = query.lte('patrimony', filters.maxPatrimony);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as Client[];
+}
+
 // Non-paginated clients for dropdowns, imports, etc.
 export function useClients(filters?: Omit<ClientFilters, 'page' | 'pageSize'>) {
   return useQuery({
     queryKey: ['clients', 'all', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('clients')
-        .select(`
-          *,
-          origin:origins(*),
-          campaign:campaigns(*),
-          partner:partners(*)
-        `)
-        .order('name');
-
-      if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,cpf.ilike.%${filters.search}%,cnpj.ilike.%${filters.search}%,email.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`);
-      }
-
-      if (filters?.type) {
-        query = query.eq('type', filters.type);
-      }
-
-      if (filters?.assessorId) {
-        query = query.eq('assessor_id', filters.assessorId);
-      }
-
-      if (filters?.profile) {
-        query = query.eq('profile', filters.profile);
-      }
-
-      if (filters?.state) {
-        query = query.eq('state', filters.state);
-      }
-
-      if (filters?.partnerId) {
-        query = query.eq('partner_id', filters.partnerId);
-      }
-
-      if (filters?.active !== undefined) {
-        query = query.eq('active', filters.active);
-      }
-
-      if (filters?.minPatrimony !== undefined) {
-        query = query.gte('patrimony', filters.minPatrimony);
-      }
-
-      if (filters?.maxPatrimony !== undefined) {
-        query = query.lte('patrimony', filters.maxPatrimony);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Client[];
-    },
+    queryFn: async () => fetchAllClientsWithRelations(filters),
   });
 }
 

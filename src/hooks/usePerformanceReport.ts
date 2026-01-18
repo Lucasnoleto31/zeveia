@@ -72,6 +72,77 @@ export function usePerformanceReport(options: PerformanceReportOptions | number 
       }
       const currentMonthStart = startOfMonth(new Date());
 
+      // Batch fetch clients
+      async function fetchAllClientsForPerformance(assessorIds: string[]) {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          let query = supabase
+            .from('clients')
+            .select('id, assessor_id, created_at, patrimony, active')
+            .range(from, to);
+
+          if (assessorIds.length > 0) {
+            query = query.in('assessor_id', assessorIds);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
+      }
+
+      // Batch fetch leads
+      async function fetchAllLeadsForPerformance(assessorIds: string[], startDate: string) {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          let query = supabase
+            .from('leads')
+            .select('id, assessor_id, status, created_at')
+            .gte('created_at', startDate)
+            .range(from, to);
+
+          if (assessorIds.length > 0) {
+            query = query.in('assessor_id', assessorIds);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
+      }
+
       // Get all assessors (profiles with user_roles)
       const { data: profiles } = await supabase
         .from('profiles')
@@ -84,28 +155,74 @@ export function usePerformanceReport(options: PerformanceReportOptions | number 
       const assessorIds = userRoles?.map(r => r.user_id) || [];
       const profilesMap = new Map(profiles?.map(p => [p.user_id, p.name]) || []);
 
-      // Get clients per assessor
-      const { data: clients } = await supabase
-        .from('clients')
-        .select('id, assessor_id, created_at, patrimony, active')
-        .in('assessor_id', assessorIds);
+      // Batch fetch clients per assessor
+      const clients = await fetchAllClientsForPerformance(assessorIds);
 
-      // Get leads per assessor
-      const { data: leads } = await supabase
-        .from('leads')
-        .select('id, assessor_id, status, created_at')
-        .in('assessor_id', assessorIds)
-        .gte('created_at', startDateISO);
+      // Batch fetch leads per assessor
+      const leads = await fetchAllLeadsForPerformance(assessorIds, startDateISO);
 
-      // Get revenues per client (to calculate by assessor)
-      const { data: revenues } = await supabase
-        .from('revenues')
-        .select('client_id, our_share, date');
+      // Batch fetch all revenues
+      async function fetchAllRevenuesForPerformance() {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
 
-      // Get contracts
-      const { data: contracts } = await supabase
-        .from('contracts')
-        .select('client_id, lots_traded, date');
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          const { data, error } = await supabase
+            .from('revenues')
+            .select('client_id, our_share, date')
+            .range(from, to);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
+      }
+
+      // Batch fetch all contracts
+      async function fetchAllContractsForPerformance() {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          const { data, error } = await supabase
+            .from('contracts')
+            .select('client_id, lots_traded, date')
+            .range(from, to);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
+      }
+
+      const revenues = await fetchAllRevenuesForPerformance();
+      const contracts = await fetchAllContractsForPerformance();
 
       // Create client to assessor mapping
       const clientAssessorMap = new Map(clients?.map(c => [c.id, c.assessor_id]) || []);

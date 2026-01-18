@@ -6,18 +6,41 @@ export interface ProfileWithRole extends Profile {
   role: AppRole;
 }
 
+// Batch fetch all profiles to overcome 1000 record limit
+async function fetchAllProfiles() {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('name')
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as Profile[];
+}
+
 export function useProfiles() {
   return useQuery({
     queryKey: ['profiles'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('name');
-      
-      if (error) throw error;
-      return data as Profile[];
-    },
+    queryFn: async () => fetchAllProfiles(),
   });
 }
 
@@ -25,22 +48,37 @@ export function useProfilesWithRoles() {
   return useQuery({
     queryKey: ['profiles-with-roles'],
     queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('name');
+      const profiles = await fetchAllProfiles();
+
+      // Batch fetch all user roles
+      const PAGE_SIZE = 1000;
+      let allRoles: any[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .range(from, to);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allRoles = [...allRoles, ...data];
+          hasMore = data.length === PAGE_SIZE;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const rolesMap = new Map(allRoles?.map(r => [r.user_id, r.role as AppRole]));
       
-      if (profilesError) throw profilesError;
-
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      const rolesMap = new Map(roles?.map(r => [r.user_id, r.role as AppRole]));
-      
-      return (profiles as Profile[]).map(p => ({
+      return profiles.map(p => ({
         ...p,
         role: rolesMap.get(p.user_id) || 'assessor' as AppRole
       })) as ProfileWithRole[];
@@ -52,22 +90,37 @@ export function useAssessors() {
   return useQuery({
     queryKey: ['assessors'],
     queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('name');
+      const profiles = await fetchAllProfiles();
+
+      // Batch fetch all user roles
+      const PAGE_SIZE = 1000;
+      let allRoles: any[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .range(from, to);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allRoles = [...allRoles, ...data];
+          hasMore = data.length === PAGE_SIZE;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const rolesMap = new Map(allRoles?.map(r => [r.user_id, r.role]));
       
-      if (profilesError) throw profilesError;
-
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      const rolesMap = new Map(roles?.map(r => [r.user_id, r.role]));
-      
-      return (profiles as Profile[]).map(p => ({
+      return profiles.map(p => ({
         ...p,
         role: rolesMap.get(p.user_id) || 'assessor'
       }));

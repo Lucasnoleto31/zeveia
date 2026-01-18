@@ -10,40 +10,63 @@ interface GoalFilters {
   isOfficeGoal?: boolean;
 }
 
+// Batch fetch all goals to overcome 1000 record limit
+async function fetchAllGoals(filters?: GoalFilters) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('goals')
+      .select('*')
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
+      .range(from, to);
+
+    if (filters?.assessorId) {
+      query = query.eq('assessor_id', filters.assessorId);
+    }
+
+    if (filters?.year) {
+      query = query.eq('year', filters.year);
+    }
+
+    if (filters?.month) {
+      query = query.eq('month', filters.month);
+    }
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    if (filters?.isOfficeGoal !== undefined) {
+      query = query.eq('is_office_goal', filters.isOfficeGoal);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as Goal[];
+}
+
 export function useGoals(filters?: GoalFilters) {
   return useQuery({
     queryKey: ['goals', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('goals')
-        .select('*')
-        .order('year', { ascending: false })
-        .order('month', { ascending: false });
-
-      if (filters?.assessorId) {
-        query = query.eq('assessor_id', filters.assessorId);
-      }
-
-      if (filters?.year) {
-        query = query.eq('year', filters.year);
-      }
-
-      if (filters?.month) {
-        query = query.eq('month', filters.month);
-      }
-
-      if (filters?.type) {
-        query = query.eq('type', filters.type);
-      }
-
-      if (filters?.isOfficeGoal !== undefined) {
-        query = query.eq('is_office_goal', filters.isOfficeGoal);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Goal[];
-    },
+    queryFn: async () => fetchAllGoals(filters),
   });
 }
 

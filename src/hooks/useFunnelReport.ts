@@ -81,19 +81,44 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         endDateISO = endDate.toISOString();
       }
 
-      // Get all leads in the period
-      const { data: leads, error } = await supabase
-        .from('leads')
-        .select(`
-          *,
-          origin:origins(name),
-          campaign:campaigns(name),
-          loss_reason:loss_reasons(name)
-        `)
-        .gte('created_at', startDateISO)
-        .lte('created_at', endDateISO);
+      // Batch fetch all leads in the period
+      async function fetchAllLeadsForFunnel() {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
 
-      if (error) throw error;
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          const { data, error } = await supabase
+            .from('leads')
+            .select(`
+              *,
+              origin:origins(name),
+              campaign:campaigns(name),
+              loss_reason:loss_reasons(name)
+            `)
+            .gte('created_at', startDateISO)
+            .lte('created_at', endDateISO)
+            .range(from, to);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
+      }
+
+      const leads = await fetchAllLeadsForFunnel();
 
       // Get assessor profiles
       const { data: profiles } = await supabase

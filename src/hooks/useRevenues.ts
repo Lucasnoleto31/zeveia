@@ -71,45 +71,68 @@ export function useRevenuesPaginated(filters?: RevenueFilters): ReturnType<typeo
   });
 }
 
+// Batch fetch all revenues to overcome 1000 record limit
+async function fetchAllRevenuesWithRelations(filters?: Omit<RevenueFilters, 'page' | 'pageSize'>) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('revenues')
+      .select(`
+        *,
+        client:clients(*),
+        product:products(*),
+        subproduct:subproducts(*)
+      `)
+      .order('date', { ascending: false })
+      .range(from, to);
+
+    if (filters?.clientId) {
+      query = query.eq('client_id', filters.clientId);
+    }
+
+    if (filters?.productId) {
+      query = query.eq('product_id', filters.productId);
+    }
+
+    if (filters?.subproductId) {
+      query = query.eq('subproduct_id', filters.subproductId);
+    }
+
+    if (filters?.startDate) {
+      query = query.gte('date', filters.startDate);
+    }
+
+    if (filters?.endDate) {
+      query = query.lte('date', filters.endDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as Revenue[];
+}
+
 // Non-paginated revenues for backwards compatibility
 export function useRevenues(filters?: Omit<RevenueFilters, 'page' | 'pageSize'>) {
   return useQuery({
     queryKey: ['revenues', 'all', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('revenues')
-        .select(`
-          *,
-          client:clients(*),
-          product:products(*),
-          subproduct:subproducts(*)
-        `)
-        .order('date', { ascending: false });
-
-      if (filters?.clientId) {
-        query = query.eq('client_id', filters.clientId);
-      }
-
-      if (filters?.productId) {
-        query = query.eq('product_id', filters.productId);
-      }
-
-      if (filters?.subproductId) {
-        query = query.eq('subproduct_id', filters.subproductId);
-      }
-
-      if (filters?.startDate) {
-        query = query.gte('date', filters.startDate);
-      }
-
-      if (filters?.endDate) {
-        query = query.lte('date', filters.endDate);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Revenue[];
-    },
+    queryFn: async () => fetchAllRevenuesWithRelations(filters),
   });
 }
 
@@ -196,29 +219,55 @@ export function useImportRevenues() {
   });
 }
 
+// Batch fetch revenues for stats
+async function fetchRevenuesForStats(filters?: RevenueFilters) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('revenues')
+      .select(`
+        date,
+        our_share,
+        product:products(name)
+      `)
+      .range(from, to);
+
+    if (filters?.startDate) {
+      query = query.gte('date', filters.startDate);
+    }
+
+    if (filters?.endDate) {
+      query = query.lte('date', filters.endDate);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 // Aggregated revenue data
 export function useRevenueStats(filters?: RevenueFilters) {
   return useQuery({
     queryKey: ['revenueStats', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('revenues')
-        .select(`
-          date,
-          our_share,
-          product:products(name)
-        `);
-
-      if (filters?.startDate) {
-        query = query.gte('date', filters.startDate);
-      }
-
-      if (filters?.endDate) {
-        query = query.lte('date', filters.endDate);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
+      const data = await fetchRevenuesForStats(filters);
 
       // Group by month
       const byMonth: Record<string, number> = {};

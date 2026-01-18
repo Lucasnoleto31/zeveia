@@ -10,16 +10,39 @@ export interface AccountMapping {
   created_at: string | null;
 }
 
+// Batch fetch all account mappings to overcome 1000 record limit
+async function fetchAllAccountMappings(): Promise<AccountMapping[]> {
+  const PAGE_SIZE = 1000;
+  let allData: AccountMapping[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('client_account_mappings')
+      .select('*')
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 export function useAccountMappings() {
   return useQuery({
     queryKey: ['accountMappings'],
-    queryFn: async (): Promise<AccountMapping[]> => {
-      const { data, error } = await supabase
-        .from('client_account_mappings')
-        .select('*');
-      
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: async (): Promise<AccountMapping[]> => fetchAllAccountMappings(),
   });
 }

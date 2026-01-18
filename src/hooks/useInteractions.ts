@@ -10,37 +10,89 @@ interface InteractionFilters {
   limit?: number;
 }
 
+// Batch fetch all interactions to overcome 1000 record limit
+async function fetchAllInteractions(filters?: InteractionFilters) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  // If there's a limit specified, use it directly without batch fetching
+  if (filters?.limit) {
+    let query = supabase
+      .from('interactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(filters.limit);
+
+    if (filters?.clientId) {
+      query = query.eq('client_id', filters.clientId);
+    }
+
+    if (filters?.leadId) {
+      query = query.eq('lead_id', filters.leadId);
+    }
+
+    if (filters?.userId) {
+      query = query.eq('user_id', filters.userId);
+    }
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  // Batch fetch without limit
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('interactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (filters?.clientId) {
+      query = query.eq('client_id', filters.clientId);
+    }
+
+    if (filters?.leadId) {
+      query = query.eq('lead_id', filters.leadId);
+    }
+
+    if (filters?.userId) {
+      query = query.eq('user_id', filters.userId);
+    }
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 export function useInteractions(filters?: InteractionFilters) {
   return useQuery({
     queryKey: ['interactions', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('interactions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (filters?.clientId) {
-        query = query.eq('client_id', filters.clientId);
-      }
-
-      if (filters?.leadId) {
-        query = query.eq('lead_id', filters.leadId);
-      }
-
-      if (filters?.userId) {
-        query = query.eq('user_id', filters.userId);
-      }
-
-      if (filters?.type) {
-        query = query.eq('type', filters.type);
-      }
-
-      if (filters?.limit) {
-        query = query.limit(filters.limit);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
+      const data = await fetchAllInteractions(filters);
 
       // Fetch profiles for user names
       const userIds = [...new Set(data?.map(i => i.user_id) || [])];
