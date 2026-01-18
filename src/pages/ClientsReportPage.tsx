@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, FileDown, Users, TrendingUp, AlertTriangle, Wallet } from 'lucide-react';
+import { Loader2, FileDown, Users, TrendingUp, AlertTriangle, Wallet, Trophy } from 'lucide-react';
 import { useClientsReport } from '@/hooks/useClientsReport';
 import {
   BarChart,
@@ -31,6 +32,7 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3
 export default function ClientsReportPage() {
   const [months, setMonths] = useState(12);
   const { data, isLoading, error } = useClientsReport(months);
+  const navigate = useNavigate();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -436,6 +438,133 @@ export default function ClientsReportPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Top 10 Rankings */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {/* Top by Patrimony */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-yellow-500" />
+                Top 10 Patrimônio
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {data.topByPatrimony.map((client, i) => (
+                <div
+                  key={client.id}
+                  onClick={() => navigate(`/clients/${client.id}`)}
+                  className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 text-center">
+                      {i === 0 && '🥇'}
+                      {i === 1 && '🥈'}
+                      {i === 2 && '🥉'}
+                      {i > 2 && <span className="text-muted-foreground text-sm">{i + 1}</span>}
+                    </span>
+                    <span className="text-sm truncate max-w-[100px]">{client.name}</span>
+                  </div>
+                  <span className="text-xs font-mono">{formatCurrency(client.value)}</span>
+                </div>
+              ))}
+              {data.topByPatrimony.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Sem dados</p>}
+            </CardContent>
+          </Card>
+
+          {/* Top by Revenue */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-green-500" />
+                Top 10 Receita
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {data.topByRevenue.map((client, i) => (
+                <div
+                  key={client.id}
+                  onClick={() => navigate(`/clients/${client.id}`)}
+                  className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 text-center">
+                      {i === 0 && '🥇'}
+                      {i === 1 && '🥈'}
+                      {i === 2 && '🥉'}
+                      {i > 2 && <span className="text-muted-foreground text-sm">{i + 1}</span>}
+                    </span>
+                    <span className="text-sm truncate max-w-[100px]">{client.name}</span>
+                  </div>
+                  <span className="text-xs font-mono">{formatCurrency(client.value)}</span>
+                </div>
+              ))}
+              {data.topByRevenue.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Sem dados</p>}
+            </CardContent>
+          </Card>
+
+          {/* Top by Contracts */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-blue-500" />
+                Top 10 Contratos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {data.topByContracts.map((client, i) => (
+                <div
+                  key={client.id}
+                  onClick={() => navigate(`/clients/${client.id}`)}
+                  className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 text-center">
+                      {i === 0 && '🥇'}
+                      {i === 1 && '🥈'}
+                      {i === 2 && '🥉'}
+                      {i > 2 && <span className="text-muted-foreground text-sm">{i + 1}</span>}
+                    </span>
+                    <span className="text-sm truncate max-w-[100px]">{client.name}</span>
+                  </div>
+                  <span className="text-xs font-mono">{client.value.toLocaleString('pt-BR')} lotes</span>
+                </div>
+              ))}
+              {data.topByContracts.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Sem dados</p>}
+            </CardContent>
+          </Card>
+
+          {/* Top by Zeroed */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-red-500" />
+                Top 10 Zerados
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {data.topByZeroed.map((client, i) => (
+                <div
+                  key={client.id}
+                  onClick={() => navigate(`/clients/${client.id}`)}
+                  className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 text-center">
+                      {i === 0 && '🥇'}
+                      {i === 1 && '🥈'}
+                      {i === 2 && '🥉'}
+                      {i > 2 && <span className="text-muted-foreground text-sm">{i + 1}</span>}
+                    </span>
+                    <span className="text-sm truncate max-w-[100px]">{client.name}</span>
+                  </div>
+                  <span className="text-xs font-mono">{client.value.toLocaleString('pt-BR')} lotes</span>
+                </div>
+              ))}
+              {data.topByZeroed.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Sem dados</p>}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </MainLayout>
   );

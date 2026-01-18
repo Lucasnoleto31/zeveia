@@ -1,6 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+interface ClientRanking {
+  id: string;
+  name: string;
+  value: number;
+}
+
 interface ClientsReportData {
   // Summary metrics
   totalClients: number;
@@ -43,6 +49,12 @@ interface ClientsReportData {
   
   // Product penetration
   productPenetration: { product: string; clients: number; percentage: number }[];
+  
+  // Top 10 Rankings
+  topByPatrimony: ClientRanking[];
+  topByRevenue: ClientRanking[];
+  topByContracts: ClientRanking[];
+  topByZeroed: ClientRanking[];
 }
 
 export function useClientsReport(months: number = 12) {
@@ -264,6 +276,54 @@ export function useClientsReport(months: number = 12) {
         }))
         .sort((a, b) => b.percentage - a.percentage);
       
+      // Top 10 Rankings
+      // By Patrimony
+      const topByPatrimony: ClientRanking[] = (clients || [])
+        .filter(c => c.active && c.patrimony)
+        .sort((a, b) => Number(b.patrimony || 0) - Number(a.patrimony || 0))
+        .slice(0, 10)
+        .map(c => ({ id: c.id, name: c.name, value: Number(c.patrimony || 0) }));
+      
+      // By Revenue (using clientRevenueMap from ABC calculation)
+      const topByRevenue: ClientRanking[] = sortedClientRevenues
+        .slice(0, 10)
+        .map(([clientId, revenue]) => {
+          const client = clients?.find(c => c.id === clientId);
+          return { id: clientId, name: client?.name || 'Desconhecido', value: revenue };
+        });
+      
+      // By Contracts (lots traded)
+      const clientContractsMap = new Map<string, number>();
+      contracts?.forEach(c => {
+        if (c.client_id) {
+          clientContractsMap.set(c.client_id, (clientContractsMap.get(c.client_id) || 0) + (c.lots_traded || 0));
+        }
+      });
+      
+      const topByContracts: ClientRanking[] = Array.from(clientContractsMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([clientId, lots]) => {
+          const client = clients?.find(c => c.id === clientId);
+          return { id: clientId, name: client?.name || 'Desconhecido', value: lots };
+        });
+      
+      // By Zeroed (lots zeroed)
+      const clientZeroedMap = new Map<string, number>();
+      contracts?.forEach(c => {
+        if (c.client_id) {
+          clientZeroedMap.set(c.client_id, (clientZeroedMap.get(c.client_id) || 0) + (c.lots_zeroed || 0));
+        }
+      });
+      
+      const topByZeroed: ClientRanking[] = Array.from(clientZeroedMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([clientId, lots]) => {
+          const client = clients?.find(c => c.id === clientId);
+          return { id: clientId, name: client?.name || 'Desconhecido', value: lots };
+        });
+      
       return {
         totalClients,
         activeClients,
@@ -279,6 +339,10 @@ export function useClientsReport(months: number = 12) {
         typeDistribution,
         abcCurve,
         productPenetration,
+        topByPatrimony,
+        topByRevenue,
+        topByContracts,
+        topByZeroed,
       };
     },
   });

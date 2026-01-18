@@ -59,6 +59,7 @@ const reportItems = [
   { title: 'Assessores', url: '/reports/performance', icon: BarChart3 },
   { title: 'Parceiros', url: '/reports/roi', icon: BarChart3 },
   { title: 'Clientes', url: '/reports/clients', icon: BarChart3 },
+  { title: 'Receitas', url: '/reports/revenues', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
