@@ -60,6 +60,7 @@ const reportItems = [
   { title: 'Parceiros', url: '/reports/roi', icon: BarChart3 },
   { title: 'Clientes', url: '/reports/clients', icon: BarChart3 },
   { title: 'Receitas', url: '/reports/revenues', icon: BarChart3 },
+  { title: 'Contratos', url: '/reports/contracts', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
