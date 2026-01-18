@@ -45,12 +45,31 @@ export interface PerformanceMetrics {
   };
 }
 
-export function usePerformanceReport(months: number = 6) {
+export interface PerformanceReportOptions {
+  months?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function usePerformanceReport(options: PerformanceReportOptions | number = 6) {
+  const opts = typeof options === 'number' ? { months: options } : options;
+  const { months = 6, startDate: customStartDate, endDate: customEndDate } = opts;
+
   return useQuery({
-    queryKey: ['performance-report', months],
+    queryKey: ['performance-report', months, customStartDate, customEndDate],
     queryFn: async (): Promise<PerformanceMetrics> => {
-      const endDate = endOfMonth(new Date());
-      const startDate = startOfMonth(subMonths(new Date(), months - 1));
+      let startDateISO: string;
+      let endDateISO: string;
+
+      if (customStartDate && customEndDate) {
+        startDateISO = new Date(customStartDate).toISOString();
+        endDateISO = new Date(customEndDate + 'T23:59:59').toISOString();
+      } else {
+        const endDate = endOfMonth(new Date());
+        const startDate = startOfMonth(subMonths(new Date(), months - 1));
+        startDateISO = startDate.toISOString();
+        endDateISO = endDate.toISOString();
+      }
       const currentMonthStart = startOfMonth(new Date());
 
       // Get all assessors (profiles with user_roles)
@@ -76,7 +95,7 @@ export function usePerformanceReport(months: number = 6) {
         .from('leads')
         .select('id, assessor_id, status, created_at')
         .in('assessor_id', assessorIds)
-        .gte('created_at', startDate.toISOString());
+        .gte('created_at', startDateISO);
 
       // Get revenues per client (to calculate by assessor)
       const { data: revenues } = await supabase
@@ -99,10 +118,11 @@ export function usePerformanceReport(months: number = 6) {
         
         // Clients
         const assessorClients = clients?.filter(c => c.assessor_id === assessorId && c.active) || [];
+        const startDateObj = new Date(startDateISO);
         const newClients = clients?.filter(c => 
           c.assessor_id === assessorId && 
           c.active &&
-          new Date(c.created_at) >= startDate
+          new Date(c.created_at) >= startDateObj
         ) || [];
         
         // Leads

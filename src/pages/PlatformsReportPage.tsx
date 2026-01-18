@@ -1,7 +1,7 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -35,16 +35,27 @@ import {
 import { usePlatformsReport } from '@/hooks/usePlatformsReport';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { PeriodFilter, getPeriodLabel } from '@/components/reports/PeriodFilter';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))', '#8884d8', '#82ca9d', '#ffc658'];
 
 export default function PlatformsReportPage() {
-  const [months, setMonths] = useState('12');
-  const { data, isLoading, error } = usePlatformsReport(parseInt(months));
+  const [periodType, setPeriodType] = useState<'preset' | 'custom'>('preset');
+  const [months, setMonths] = useState(12);
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
+  
+  const { data, isLoading, error } = usePlatformsReport(
+    periodType === 'custom' && customStartDate && customEndDate
+      ? { startDate: format(customStartDate, 'yyyy-MM-dd'), endDate: format(customEndDate, 'yyyy-MM-dd') }
+      : { months }
+  );
   const { isSocio } = useAuth();
   const navigate = useNavigate();
+
+  const periodLabel = getPeriodLabel(periodType, months, customStartDate, customEndDate);
 
   const exportToPDF = () => {
     if (!data) return;
@@ -57,7 +68,7 @@ export default function PlatformsReportPage() {
     y += 10;
 
     doc.setFontSize(10);
-    doc.text(`Período: Últimos ${months} meses`, 14, y);
+    doc.text(`Período: ${periodLabel}`, 14, y);
     y += 15;
 
     // Summary
@@ -159,19 +170,22 @@ export default function PlatformsReportPage() {
     <MainLayout title="Relatório de Plataformas">
       <p className="text-muted-foreground mb-6">Análise completa de custos e uso de plataformas</p>
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
-        <div className="flex items-center gap-4">
-          <Select value={months} onValueChange={setMonths}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="3">Últimos 3 meses</SelectItem>
-              <SelectItem value="6">Últimos 6 meses</SelectItem>
-              <SelectItem value="12">Últimos 12 meses</SelectItem>
-              <SelectItem value="24">Últimos 24 meses</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <PeriodFilter
+          periodType={periodType}
+          onPeriodTypeChange={setPeriodType}
+          months={months}
+          onMonthsChange={setMonths}
+          customStartDate={customStartDate}
+          onCustomStartDateChange={setCustomStartDate}
+          customEndDate={customEndDate}
+          onCustomEndDateChange={setCustomEndDate}
+          presetOptions={[
+            { value: 3, label: 'Últimos 3 meses' },
+            { value: 6, label: 'Últimos 6 meses' },
+            { value: 12, label: 'Últimos 12 meses' },
+            { value: 24, label: 'Últimos 24 meses' },
+          ]}
+        />
         <Button onClick={exportToPDF} variant="outline">
           <Download className="h-4 w-4 mr-2" />
           Exportar PDF

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, FileDown, Users, TrendingUp, AlertTriangle, Wallet, Trophy } from 'lucide-react';
 import { useClientsReport } from '@/hooks/useClientsReport';
+import { PeriodFilter, getPeriodLabel } from '@/components/reports/PeriodFilter';
 import {
   BarChart,
   Bar,
@@ -30,9 +31,19 @@ import autoTable from 'jspdf-autotable';
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function ClientsReportPage() {
+  const [periodType, setPeriodType] = useState<'preset' | 'custom'>('preset');
   const [months, setMonths] = useState(12);
-  const { data, isLoading, error } = useClientsReport(months);
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
+  
+  const { data, isLoading, error } = useClientsReport(
+    periodType === 'custom' && customStartDate && customEndDate
+      ? { startDate: format(customStartDate, 'yyyy-MM-dd'), endDate: format(customEndDate, 'yyyy-MM-dd') }
+      : { months }
+  );
   const navigate = useNavigate();
+
+  const periodLabel = getPeriodLabel(periodType, months, customStartDate, customEndDate);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -54,7 +65,7 @@ export default function ClientsReportPage() {
     doc.setFontSize(18);
     doc.text('Relatório de Clientes', pageWidth / 2, 20, { align: 'center' });
     doc.setFontSize(10);
-    doc.text(`Período: ${months} meses | Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 28, { align: 'center' });
+    doc.text(`Período: ${periodLabel} | Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 28, { align: 'center' });
 
     // Summary
     doc.setFontSize(14);
@@ -128,17 +139,17 @@ export default function ClientsReportPage() {
             <h1 className="text-2xl font-bold">Relatório de Clientes</h1>
             <p className="text-muted-foreground">Análise completa da base de clientes</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Select value={months.toString()} onValueChange={(v) => setMonths(Number(v))}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">Últimos 3 meses</SelectItem>
-                <SelectItem value="6">Últimos 6 meses</SelectItem>
-                <SelectItem value="12">Últimos 12 meses</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center gap-3">
+            <PeriodFilter
+              periodType={periodType}
+              onPeriodTypeChange={setPeriodType}
+              months={months}
+              onMonthsChange={setMonths}
+              customStartDate={customStartDate}
+              onCustomStartDateChange={setCustomStartDate}
+              customEndDate={customEndDate}
+              onCustomEndDateChange={setCustomEndDate}
+            />
             <Button onClick={exportToPDF} variant="outline">
               <FileDown className="h-4 w-4 mr-2" />
               Exportar PDF

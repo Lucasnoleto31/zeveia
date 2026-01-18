@@ -55,12 +55,31 @@ const stageConfig: Record<LeadStatus, { label: string; color: string; order: num
   perdido: { label: 'Perdido', color: '#ef4444', order: 5 },
 };
 
-export function useFunnelReport(months: number = 6) {
+export interface FunnelReportOptions {
+  months?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function useFunnelReport(options: FunnelReportOptions | number = 6) {
+  const opts = typeof options === 'number' ? { months: options } : options;
+  const { months = 6, startDate: customStartDate, endDate: customEndDate } = opts;
+
   return useQuery({
-    queryKey: ['funnel-report', months],
+    queryKey: ['funnel-report', months, customStartDate, customEndDate],
     queryFn: async (): Promise<FunnelMetrics> => {
-      const endDate = endOfMonth(new Date());
-      const startDate = startOfMonth(subMonths(new Date(), months - 1));
+      let startDateISO: string;
+      let endDateISO: string;
+
+      if (customStartDate && customEndDate) {
+        startDateISO = new Date(customStartDate).toISOString();
+        endDateISO = new Date(customEndDate + 'T23:59:59').toISOString();
+      } else {
+        const endDate = endOfMonth(new Date());
+        const startDate = startOfMonth(subMonths(new Date(), months - 1));
+        startDateISO = startDate.toISOString();
+        endDateISO = endDate.toISOString();
+      }
 
       // Get all leads in the period
       const { data: leads, error } = await supabase
@@ -71,8 +90,8 @@ export function useFunnelReport(months: number = 6) {
           campaign:campaigns(name),
           loss_reason:loss_reasons(name)
         `)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
+        .gte('created_at', startDateISO)
+        .lte('created_at', endDateISO);
 
       if (error) throw error;
 

@@ -1,16 +1,10 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   BarChart,
   Bar,
@@ -27,7 +21,6 @@ import {
   Line,
 } from 'recharts';
 import { 
-  Filter, 
   Download, 
   Loader2, 
   Handshake,
@@ -41,6 +34,7 @@ import {
   ArrowDownRight
 } from 'lucide-react';
 import { usePartnerROIReport, PartnerROIMetrics } from '@/hooks/usePartnerROIReport';
+import { PeriodFilter, getPeriodLabel } from '@/components/reports/PeriodFilter';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -48,8 +42,18 @@ import autoTable from 'jspdf-autotable';
 const COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#06b6d4', '#ec4899'];
 
 export default function PartnerROIReportPage() {
+  const [periodType, setPeriodType] = useState<'preset' | 'custom'>('preset');
   const [months, setMonths] = useState(6);
-  const { data, isLoading } = usePartnerROIReport(months);
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
+  
+  const { data, isLoading } = usePartnerROIReport(
+    periodType === 'custom' && customStartDate && customEndDate
+      ? { startDate: format(customStartDate, 'yyyy-MM-dd'), endDate: format(customEndDate, 'yyyy-MM-dd') }
+      : { months }
+  );
+
+  const periodLabel = getPeriodLabel(periodType, months, customStartDate, customEndDate);
 
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -67,7 +71,7 @@ export default function PartnerROIReportPage() {
     doc.text('Relatório de ROI de Parceiros', pageWidth / 2, 20, { align: 'center' });
 
     doc.setFontSize(12);
-    doc.text(`Período: Últimos ${months} meses`, pageWidth / 2, 30, { align: 'center' });
+    doc.text(`Período: ${periodLabel}`, pageWidth / 2, 30, { align: 'center' });
 
     // Totals
     doc.setFontSize(14);
@@ -161,18 +165,17 @@ export default function PartnerROIReportPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Select value={months.toString()} onValueChange={(v) => setMonths(parseInt(v))}>
-              <SelectTrigger className="w-[140px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">Últimos 3 meses</SelectItem>
-                <SelectItem value="6">Últimos 6 meses</SelectItem>
-                <SelectItem value="12">Últimos 12 meses</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodFilter
+              periodType={periodType}
+              onPeriodTypeChange={setPeriodType}
+              months={months}
+              onMonthsChange={setMonths}
+              customStartDate={customStartDate}
+              onCustomStartDateChange={setCustomStartDate}
+              customEndDate={customEndDate}
+              onCustomEndDateChange={setCustomEndDate}
+            />
 
             <Button variant="outline" onClick={exportToPDF}>
               <Download className="h-4 w-4 mr-2" />
