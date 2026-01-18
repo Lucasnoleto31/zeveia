@@ -5,12 +5,15 @@ import { ClientFilters } from '@/components/clients/ClientFilters';
 import { ClientsTable } from '@/components/clients/ClientsTable';
 import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import { ImportClientsDialog } from '@/components/clients/ImportClientsDialog';
+import { MergeClientsDialog } from '@/components/clients/MergeClientsDialog';
 import { useClients } from '@/hooks/useClients';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFindDuplicates } from '@/hooks/useMergeClients';
 import { Client, ClientType, InvestorProfile } from '@/types/database';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Upload, Users, Building2, Loader2 } from 'lucide-react';
+import { Plus, Upload, Users, Building2, Loader2, GitMerge } from 'lucide-react';
 
 interface ClientFiltersState {
   search: string;
@@ -28,6 +31,7 @@ export default function ClientsPage() {
   const [filters, setFilters] = useState<ClientFiltersState>({ search: '', active: true });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isMergeOpen, setIsMergeOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formType, setFormType] = useState<ClientType>('pf');
 
@@ -64,6 +68,9 @@ export default function ClientsPage() {
 
   const pfCount = clients?.filter(c => c.type === 'pf').length || 0;
   const pjCount = clients?.filter(c => c.type === 'pj').length || 0;
+  
+  const duplicateGroups = useFindDuplicates(clients);
+  const duplicateCount = duplicateGroups.length;
 
   return (
     <MainLayout title="Clientes">
@@ -76,6 +83,19 @@ export default function ClientsPage() {
             showAssessorFilter={isSocio}
           />
           <div className="flex gap-2 flex-shrink-0">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsMergeOpen(true)}
+              className={duplicateCount > 0 ? 'border-amber-500 text-amber-600 hover:bg-amber-50' : ''}
+            >
+              <GitMerge className="h-4 w-4 mr-2" />
+              Mesclar
+              {duplicateCount > 0 && (
+                <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800">
+                  {duplicateCount}
+                </Badge>
+              )}
+            </Button>
             <Button variant="outline" onClick={() => setIsImportOpen(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Importar Excel
@@ -151,6 +171,12 @@ export default function ClientsPage() {
       <ImportClientsDialog
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
+      />
+
+      <MergeClientsDialog
+        open={isMergeOpen}
+        onOpenChange={setIsMergeOpen}
+        clients={clients || []}
       />
     </MainLayout>
   );
