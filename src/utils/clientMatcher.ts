@@ -39,6 +39,19 @@ function normalizeString(str: string | null | undefined): string {
  * 3. CNPJ (alta confiança)
  * 4. Nome (baixa confiança - fallback)
  */
+/**
+ * Prioriza cliente ativo quando múltiplos clientes correspondem ao critério
+ */
+function preferActiveClient(matches: Client[]): Client | undefined {
+  if (matches.length === 0) return undefined;
+  // Ordenar por active DESC (ativos primeiro)
+  const sorted = [...matches].sort((a, b) => {
+    if (a.active === b.active) return 0;
+    return a.active ? -1 : 1;
+  });
+  return sorted[0];
+}
+
 export function findClientMatch(
   clients: Client[],
   data: MatchInput
@@ -46,46 +59,50 @@ export function findClientMatch(
   // 1. Tentar por número da conta (alta confiança)
   if (data.accountNumber) {
     const normalizedAccount = normalizeString(data.accountNumber);
-    const match = clients.find(
+    const matches = clients.filter(
       (c) => normalizeString(c.account_number) === normalizedAccount
     );
+    const match = preferActiveClient(matches);
     if (match) {
       return { client: match, matchedBy: 'account_number', confidence: 'high' };
     }
   }
 
-  // 2. Tentar por CPF (alta confiança)
+  // 2. Tentar por CPF (alta confiança) - prioriza ativo se houver duplicatas
   if (data.cpf) {
     const normalizedCpf = normalizeDocument(data.cpf);
     if (normalizedCpf.length >= 11) {
-      const match = clients.find(
+      const matches = clients.filter(
         (c) => normalizeDocument(c.cpf) === normalizedCpf
       );
+      const match = preferActiveClient(matches);
       if (match) {
         return { client: match, matchedBy: 'cpf', confidence: 'high' };
       }
     }
   }
 
-  // 3. Tentar por CNPJ (alta confiança)
+  // 3. Tentar por CNPJ (alta confiança) - prioriza ativo se houver duplicatas
   if (data.cnpj) {
     const normalizedCnpj = normalizeDocument(data.cnpj);
     if (normalizedCnpj.length >= 14) {
-      const match = clients.find(
+      const matches = clients.filter(
         (c) => normalizeDocument(c.cnpj) === normalizedCnpj
       );
+      const match = preferActiveClient(matches);
       if (match) {
         return { client: match, matchedBy: 'cnpj', confidence: 'high' };
       }
     }
   }
 
-  // 4. Tentar por nome (baixa confiança - fallback)
+  // 4. Tentar por nome (baixa confiança - fallback) - prioriza ativo
   if (data.name) {
     const normalizedName = normalizeString(data.name);
-    const match = clients.find(
+    const matches = clients.filter(
       (c) => normalizeString(c.name) === normalizedName
     );
+    const match = preferActiveClient(matches);
     if (match) {
       return { client: match, matchedBy: 'name', confidence: 'low' };
     }
