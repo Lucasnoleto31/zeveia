@@ -25,10 +25,29 @@ export function useDashboardMetrics() {
         .eq('active', true)
         .eq('type', 'pj');
 
-      // Get leads count by status
-      const { data: leadsData } = await supabase
-        .from('leads')
-        .select('status');
+      // Batch fetch ALL leads
+      const PAGE_SIZE = 1000;
+      let allLeads: any[] = [];
+      let leadsPage = 0;
+      let hasMoreLeads = true;
+
+      while (hasMoreLeads) {
+        const from = leadsPage * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: leadsBatch } = await supabase
+          .from('leads')
+          .select('status')
+          .range(from, to);
+
+        if (leadsBatch && leadsBatch.length > 0) {
+          allLeads = [...allLeads, ...leadsBatch];
+          hasMoreLeads = leadsBatch.length === PAGE_SIZE;
+          leadsPage++;
+        } else {
+          hasMoreLeads = false;
+        }
+      }
 
       const leadsByStatus = {
         novo: 0,
@@ -38,7 +57,7 @@ export function useDashboardMetrics() {
         perdido: 0,
       };
 
-      leadsData?.forEach((lead: any) => {
+      allLeads.forEach((lead: any) => {
         if (lead.status in leadsByStatus) {
           leadsByStatus[lead.status as keyof typeof leadsByStatus]++;
         }
@@ -46,10 +65,30 @@ export function useDashboardMetrics() {
 
       const totalLeads = Object.values(leadsByStatus).reduce((a, b) => a + b, 0) - leadsByStatus.convertido - leadsByStatus.perdido;
 
-      // Get revenues
-      const { data: revenues } = await supabase
-        .from('revenues')
-        .select('date, our_share');
+      // Batch fetch ALL revenues
+      let allRevenues: any[] = [];
+      let revenuesPage = 0;
+      let hasMoreRevenues = true;
+
+      while (hasMoreRevenues) {
+        const from = revenuesPage * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: revenuesBatch } = await supabase
+          .from('revenues')
+          .select('date, our_share')
+          .range(from, to);
+
+        if (revenuesBatch && revenuesBatch.length > 0) {
+          allRevenues = [...allRevenues, ...revenuesBatch];
+          hasMoreRevenues = revenuesBatch.length === PAGE_SIZE;
+          revenuesPage++;
+        } else {
+          hasMoreRevenues = false;
+        }
+      }
+
+      const revenues = allRevenues;
 
       const totalRevenue = revenues?.reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
 
@@ -59,13 +98,12 @@ export function useDashboardMetrics() {
         .reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
 
       // Get ALL contracts with batch fetching
-      const PAGE_SIZE = 1000;
       let allContracts: any[] = [];
-      let page = 0;
-      let hasMore = true;
+      let contractsPage = 0;
+      let hasMoreContracts = true;
 
-      while (hasMore) {
-        const from = page * PAGE_SIZE;
+      while (hasMoreContracts) {
+        const from = contractsPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
         const { data: contractsBatch } = await supabase
@@ -75,10 +113,10 @@ export function useDashboardMetrics() {
 
         if (contractsBatch && contractsBatch.length > 0) {
           allContracts = [...allContracts, ...contractsBatch];
-          hasMore = contractsBatch.length === PAGE_SIZE;
-          page++;
+          hasMoreContracts = contractsBatch.length === PAGE_SIZE;
+          contractsPage++;
         } else {
-          hasMore = false;
+          hasMoreContracts = false;
         }
       }
 
@@ -104,11 +142,33 @@ export function useRevenueChart() {
   return useQuery({
     queryKey: ['revenueChart'],
     queryFn: async () => {
-      const { data: revenues } = await supabase
-        .from('revenues')
-        .select('date, our_share')
-        .gte('date', format(subMonths(new Date(), 11), 'yyyy-MM-01'))
-        .order('date');
+      const startDate = format(subMonths(new Date(), 11), 'yyyy-MM-01');
+      const PAGE_SIZE = 1000;
+      let allRevenues: any[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: revenuesBatch } = await supabase
+          .from('revenues')
+          .select('date, our_share')
+          .gte('date', startDate)
+          .order('date')
+          .range(from, to);
+
+        if (revenuesBatch && revenuesBatch.length > 0) {
+          allRevenues = [...allRevenues, ...revenuesBatch];
+          hasMore = revenuesBatch.length === PAGE_SIZE;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const revenues = allRevenues;
 
       // Group by month
       const byMonth: Record<string, number> = {};
@@ -195,12 +255,34 @@ export function useClientsChart() {
   return useQuery({
     queryKey: ['clientsChart'],
     queryFn: async () => {
-      const { data: clients } = await supabase
-        .from('clients')
-        .select('created_at')
-        .eq('active', true)
-        .gte('created_at', format(subMonths(new Date(), 11), 'yyyy-MM-01'))
-        .order('created_at');
+      const startDate = format(subMonths(new Date(), 11), 'yyyy-MM-01');
+      const PAGE_SIZE = 1000;
+      let allClients: any[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: clientsBatch } = await supabase
+          .from('clients')
+          .select('created_at')
+          .eq('active', true)
+          .gte('created_at', startDate)
+          .order('created_at')
+          .range(from, to);
+
+        if (clientsBatch && clientsBatch.length > 0) {
+          allClients = [...allClients, ...clientsBatch];
+          hasMore = clientsBatch.length === PAGE_SIZE;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const clients = allClients;
 
       // Group by month (cumulative)
       const byMonth: Record<string, number> = {};
