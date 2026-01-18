@@ -25,6 +25,7 @@ import { useImportContracts } from '@/hooks/useContracts';
 import { useClients } from '@/hooks/useClients';
 import { useAssets, usePlatforms } from '@/hooks/useConfiguration';
 import { findClientMatch, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
+import { parseExcelDate } from '@/utils/excelDateParser';
 import { MatchConfidenceBadge } from '@/components/imports/MatchConfidenceBadge';
 import { toast } from 'sonner';
 import {
@@ -105,7 +106,8 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
         const parsed: ParsedContract[] = jsonData.map((row: any) => {
           const errors: string[] = [];
 
-          const date = row['Data']?.toString().trim();
+          const rawDate = row['Data'];
+          const date = parseExcelDate(rawDate);
           const accountNumber = row['Número Conta']?.toString().trim() || row['Numero Conta']?.toString().trim();
           const cpf = row['CPF']?.toString().trim();
           const cnpj = row['CNPJ']?.toString().trim();
@@ -116,8 +118,8 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
           const lotsZeroed = parseInt(row['Lotes Zerados']) || 0;
 
           // Validate date
-          if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-            errors.push('Data inválida (use YYYY-MM-DD)');
+          if (!date) {
+            errors.push('Data inválida');
           }
 
           // Find client using hierarchical matching
