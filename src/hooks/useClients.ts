@@ -161,10 +161,17 @@ export function useClientMetrics(clientId: string) {
     queryFn: async () => {
       const { data: revenues, error: revenuesError } = await supabase
         .from('revenues')
-        .select('*')
+        .select('*, product:products(*)')
         .eq('client_id', clientId);
 
       if (revenuesError) throw revenuesError;
+
+      const { data: allProducts, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('active', true);
+
+      if (productsError) throw productsError;
 
       const { data: contracts, error: contractsError } = await supabase
         .from('contracts')
@@ -174,19 +181,72 @@ export function useClientMetrics(clientId: string) {
       if (contractsError) throw contractsError;
 
       const totalRevenue = revenues?.reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
-      const currentMonth = new Date().toISOString().slice(0, 7);
+      
+      // Current and previous month calculations
+      const now = new Date();
+      const currentMonth = now.toISOString().slice(0, 7);
+      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+      
       const monthlyRevenue = revenues
         ?.filter(r => r.date.startsWith(currentMonth))
         .reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
+      
+      const previousMonthRevenue = revenues
+        ?.filter(r => r.date.startsWith(prevMonth))
+        .reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
+      
+      // Calculate revenue change percentage
+      const revenueChange = previousMonthRevenue > 0 
+        ? ((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100 
+        : monthlyRevenue > 0 ? 100 : 0;
 
       const lastRevenue = revenues?.length 
         ? revenues.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.date 
         : null;
 
+      // Products used by client
+      const usedProductIds = new Set(revenues?.map(r => r.product_id).filter(Boolean));
+      const activeProducts = usedProductIds.size;
+      const totalProducts = allProducts?.length || 0;
+      
+      // Cross-selling opportunities (unused products)
+      const unusedProducts = allProducts?.filter(p => !usedProductIds.has(p.id)) || [];
+
+      // Revenue by month for chart (last 12 months)
+      const revenueByMonth: { month: string; value: number }[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = date.toISOString().slice(0, 7);
+        const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short' });
+        const monthValue = revenues
+          ?.filter(r => r.date.startsWith(monthKey))
+          .reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
+        revenueByMonth.push({ month: monthLabel, value: monthValue });
+      }
+
+      // Revenue by product for donut chart
+      const revenueByProductMap = new Map<string, { name: string; value: number }>();
+      revenues?.forEach(r => {
+        const productName = r.product?.name || 'Outros';
+        const existing = revenueByProductMap.get(productName);
+        if (existing) {
+          existing.value += Number(r.our_share);
+        } else {
+          revenueByProductMap.set(productName, { name: productName, value: Number(r.our_share) });
+        }
+      });
+      const revenueByProduct = Array.from(revenueByProductMap.values()).sort((a, b) => b.value - a.value);
+
       return {
         totalRevenue,
         monthlyRevenue,
+        revenueChange,
         lastRevenueDate: lastRevenue,
+        activeProducts,
+        totalProducts,
+        unusedProducts,
+        revenueByMonth,
+        revenueByProduct,
         totalContracts: contracts?.length || 0,
         totalLotsTraded: contracts?.reduce((sum, c) => sum + c.lots_traded, 0) || 0,
       };
