@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { usePartners, useDeletePartner } from '@/hooks/usePartners';
 import { usePartnerROI } from '@/hooks/usePartnerROI';
@@ -34,7 +35,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { PartnerFormDialog } from '@/components/partners/PartnerFormDialog';
-import { PartnerDetailDialog } from '@/components/partners/PartnerDetailDialog';
 import { toast } from 'sonner';
 import {
   Plus,
@@ -59,11 +59,10 @@ interface PartnerFilters {
 }
 
 export default function PartnersPage() {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<PartnerFilters>({ active: true });
   const [formOpen, setFormOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Partner | undefined>();
-  const [viewingPartnerId, setViewingPartnerId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: partners, isLoading } = usePartners(filters);
@@ -90,8 +89,7 @@ export default function PartnersPage() {
   };
 
   const handleView = (partnerId: string) => {
-    setViewingPartnerId(partnerId);
-    setDetailOpen(true);
+    navigate(`/partners/${partnerId}`);
   };
 
   const handleDelete = async () => {
@@ -380,12 +378,6 @@ export default function PartnersPage() {
         partner={editingPartner}
       />
 
-      {/* Detail Dialog */}
-      <PartnerDetailDialog
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        partnerId={viewingPartnerId}
-      />
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>

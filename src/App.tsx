@@ -14,6 +14,7 @@ import ClientDetailPage from "./pages/ClientDetailPage";
 import RevenuesPage from "./pages/RevenuesPage";
 import ContractsPage from "./pages/ContractsPage";
 import PartnersPage from "./pages/PartnersPage";
+import PartnerDetailPage from "./pages/PartnerDetailPage";
 import PlatformCostsPage from "./pages/PlatformCostsPage";
 import GoalsPage from "./pages/GoalsPage";
 import AlertsPage from "./pages/AlertsPage";
@@ -49,6 +50,7 @@ const App = () => (
               <Route path="/revenues" element={<ProtectedRoute><RevenuesPage /></ProtectedRoute>} />
               <Route path="/contracts" element={<ProtectedRoute><ContractsPage /></ProtectedRoute>} />
               <Route path="/partners" element={<ProtectedRoute><PartnersPage /></ProtectedRoute>} />
+              <Route path="/partners/:id" element={<ProtectedRoute><PartnerDetailPage /></ProtectedRoute>} />
               <Route path="/platforms" element={<ProtectedRoute><PlatformCostsPage /></ProtectedRoute>} />
               <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
               <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
