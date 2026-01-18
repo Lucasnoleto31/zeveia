@@ -531,12 +531,17 @@ export default function FunnelReportPage() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart
-                    data={data.cohortData.map((c) => ({
-                      cohort: c.cohort,
-                      convertidos: c.retention[c.retention.length - 1]?.converted || 0,
-                      ativos: c.retention[c.retention.length - 1]?.active || 0,
-                      perdidos: c.retention[c.retention.length - 1]?.lost || 0,
-                    }))}
+                    data={data.cohortData.map((c) => {
+                      const lastRetention = c.retention && c.retention.length > 0 
+                        ? c.retention[c.retention.length - 1] 
+                        : null;
+                      return {
+                        cohort: c.cohort,
+                        convertidos: lastRetention?.converted || 0,
+                        ativos: lastRetention?.active || 0,
+                        perdidos: lastRetention?.lost || 0,
+                      };
+                    })}
                   >
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="cohort" className="text-xs" />
