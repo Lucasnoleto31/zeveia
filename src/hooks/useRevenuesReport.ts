@@ -17,6 +17,7 @@ interface RevenuesReportData {
   // Monthly evolution
   monthlyEvolution: {
     month: string;
+    monthKey: string;
     gross: number;
     taxes: number;
     genial: number;
@@ -49,32 +50,86 @@ interface RevenuesReportData {
   
   // Top 10 clients by revenue
   topClients: { name: string; value: number; id: string; percentage: number }[];
+
+  // Available months for comparison
+  availableMonths: { key: string; label: string }[];
 }
 
-export function useRevenuesReport(months: number = 12) {
+interface RevenuesReportOptions {
+  months?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+// Helper function to fetch all revenues in batches (overcomes 1000 row limit)
+async function fetchAllRevenues(startDateStr: string): Promise<any[]> {
+  const allRevenues: any[] = [];
+  const batchSize = 1000;
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('revenues')
+      .select('*, product:products(id, name), client:clients(id, name, assessor_id, partner:partners(name))')
+      .gte('date', startDateStr)
+      .order('date', { ascending: true })
+      .range(from, from + batchSize - 1);
+
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allRevenues.push(...data);
+      from += batchSize;
+      hasMore = data.length === batchSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRevenues;
+}
+
+export function useRevenuesReport(options: RevenuesReportOptions | number = 12) {
+  // Handle both old API (just months number) and new API (options object)
+  const months = typeof options === 'number' ? options : (options.months || 12);
+  const customStartDate = typeof options === 'object' ? options.startDate : undefined;
+  const customEndDate = typeof options === 'object' ? options.endDate : undefined;
+
   return useQuery({
-    queryKey: ['revenuesReport', months],
+    queryKey: ['revenuesReport', months, customStartDate, customEndDate],
     queryFn: async (): Promise<RevenuesReportData> => {
       const now = new Date();
-      const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
-      const previousStartDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
+      
+      let startDate: Date;
+      let endDate: Date;
+      let previousStartDate: Date;
+      
+      if (customStartDate && customEndDate) {
+        startDate = new Date(customStartDate);
+        endDate = new Date(customEndDate);
+        // For custom period, previous period is the same length before start
+        const periodLength = endDate.getTime() - startDate.getTime();
+        previousStartDate = new Date(startDate.getTime() - periodLength);
+      } else {
+        startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // End of current month
+        previousStartDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
+      }
+      
       const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
       const previousStartDateStr = previousStartDate.toISOString().split('T')[0];
       
-      // Fetch revenues with all relations
-      const { data: revenues, error: revenuesError } = await supabase
-        .from('revenues')
-        .select('*, product:products(id, name), client:clients(id, name, assessor_id, partner:partners(name))')
-        .gte('date', previousStartDateStr);
-      
-      if (revenuesError) throw revenuesError;
+      // Fetch all revenues using batch fetching
+      const allRevenues = await fetchAllRevenues(previousStartDateStr);
       
       // Fetch profiles for assessor names
       const { data: profiles } = await supabase.from('profiles').select('user_id, name');
       
       // Filter revenues for current period
-      const currentRevenues = revenues?.filter(r => r.date >= startDateStr) || [];
-      const previousRevenues = revenues?.filter(r => r.date < startDateStr) || [];
+      const currentRevenues = allRevenues.filter(r => r.date >= startDateStr && r.date <= endDateStr);
+      const previousRevenues = allRevenues.filter(r => r.date < startDateStr);
       
       // Summary totals
       const totalGross = currentRevenues.reduce((sum, r) => sum + Number(r.gross_revenue || 0), 0);
@@ -121,14 +176,48 @@ export function useRevenuesReport(months: number = 12) {
         monthlyMap.set(monthKey, existing);
       });
       
+      // Build monthly evolution based on period type
       const monthlyEvolution: RevenuesReportData['monthlyEvolution'] = [];
-      for (let i = months - 1; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthKey = date.toISOString().slice(0, 7);
-        const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-        const data = monthlyMap.get(monthKey) || { gross: 0, taxes: 0, genial: 0, zeve: 0 };
-        monthlyEvolution.push({ month: monthLabel, ...data });
+      const monthSet = new Set<string>();
+      
+      if (customStartDate && customEndDate) {
+        // For custom period, iterate through actual months in range
+        const current = new Date(startDate);
+        while (current <= endDate) {
+          const monthKey = current.toISOString().slice(0, 7);
+          monthSet.add(monthKey);
+          const monthLabel = current.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+          const data = monthlyMap.get(monthKey) || { gross: 0, taxes: 0, genial: 0, zeve: 0 };
+          monthlyEvolution.push({ month: monthLabel, monthKey, ...data });
+          current.setMonth(current.getMonth() + 1);
+        }
+      } else {
+        // For preset period, iterate from months ago to now
+        for (let i = months - 1; i >= 0; i--) {
+          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const monthKey = date.toISOString().slice(0, 7);
+          monthSet.add(monthKey);
+          const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+          const data = monthlyMap.get(monthKey) || { gross: 0, taxes: 0, genial: 0, zeve: 0 };
+          monthlyEvolution.push({ month: monthLabel, monthKey, ...data });
+        }
       }
+
+      // Build available months for comparison (from all revenues)
+      const allMonthKeys = new Set<string>();
+      allRevenues.forEach(r => {
+        allMonthKeys.add(r.date.slice(0, 7));
+      });
+      const availableMonths = Array.from(allMonthKeys)
+        .sort()
+        .map(key => {
+          const [year, month] = key.split('-');
+          const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+          return {
+            key,
+            label: date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+          };
+        });
       
       // MRR Components calculation
       const clientMonthlyRevenue = new Map<string, Map<string, number>>();
@@ -144,32 +233,33 @@ export function useRevenuesReport(months: number = 12) {
       });
       
       const mrrComponents: RevenuesReportData['mrrComponents'] = [];
-      for (let i = months - 1; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthKey = date.toISOString().slice(0, 7);
-        const prevMonthDate = new Date(date.getFullYear(), date.getMonth() - 1, 1);
-        const prevMonthKey = prevMonthDate.toISOString().slice(0, 7);
-        const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+      const monthlyEvolutionKeys = monthlyEvolution.map(m => m.monthKey);
+      
+      monthlyEvolutionKeys.forEach((monthKey, idx) => {
+        const prevMonthKeyMRR = idx > 0 ? monthlyEvolutionKeys[idx - 1] : null;
+        const monthLabel = monthlyEvolution[idx].month;
         
         let novo = 0, expansao = 0, contracao = 0, churn = 0;
         
-        clientMonthlyRevenue.forEach((clientMap, clientId) => {
-          const currentValue = clientMap.get(monthKey) || 0;
-          const prevValue = clientMap.get(prevMonthKey) || 0;
-          
-          if (currentValue > 0 && prevValue === 0) {
-            novo += currentValue;
-          } else if (currentValue > prevValue && prevValue > 0) {
-            expansao += (currentValue - prevValue);
-          } else if (currentValue < prevValue && currentValue > 0) {
-            contracao += (prevValue - currentValue);
-          } else if (currentValue === 0 && prevValue > 0) {
-            churn += prevValue;
-          }
-        });
+        if (prevMonthKeyMRR) {
+          clientMonthlyRevenue.forEach((clientMap) => {
+            const currentValue = clientMap.get(monthKey) || 0;
+            const prevValue = clientMap.get(prevMonthKeyMRR) || 0;
+            
+            if (currentValue > 0 && prevValue === 0) {
+              novo += currentValue;
+            } else if (currentValue > prevValue && prevValue > 0) {
+              expansao += (currentValue - prevValue);
+            } else if (currentValue < prevValue && currentValue > 0) {
+              contracao += (prevValue - currentValue);
+            } else if (currentValue === 0 && prevValue > 0) {
+              churn += prevValue;
+            }
+          });
+        }
         
         mrrComponents.push({ month: monthLabel, novo, expansao, contracao: -contracao, churn: -churn });
-      }
+      });
       
       // Revenue by partner
       const partnerMap = new Map<string, number>();
@@ -239,12 +329,9 @@ export function useRevenuesReport(months: number = 12) {
         .map(([product, data]) => {
           // Build monthly data array
           const monthlyData: { month: string; value: number }[] = [];
-          for (let i = months - 1; i >= 0; i--) {
-            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const monthKey = date.toISOString().slice(0, 7);
-            const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-            monthlyData.push({ month: monthLabel, value: data.monthlyData.get(monthKey) || 0 });
-          }
+          monthlyEvolution.forEach(m => {
+            monthlyData.push({ month: m.month, value: data.monthlyData.get(m.monthKey) || 0 });
+          });
           
           // Get top clients for this product
           const topClients = Array.from(data.clientRevenue.values())
@@ -290,7 +377,78 @@ export function useRevenuesReport(months: number = 12) {
         revenueByAssessor,
         revenueByProduct,
         topClients,
+        availableMonths,
       };
     },
   });
+}
+
+// Helper hook for month comparison
+export function useMonthComparison(month1: string | null, month2: string | null) {
+  return useQuery({
+    queryKey: ['monthComparison', month1, month2],
+    enabled: !!month1 && !!month2,
+    queryFn: async () => {
+      if (!month1 || !month2) return null;
+
+      const [month1Start, month1End] = getMonthRange(month1);
+      const [month2Start, month2End] = getMonthRange(month2);
+
+      // Fetch revenues for both months
+      const { data: revenues1, error: error1 } = await supabase
+        .from('revenues')
+        .select('*, client:clients(id)')
+        .gte('date', month1Start)
+        .lte('date', month1End);
+
+      const { data: revenues2, error: error2 } = await supabase
+        .from('revenues')
+        .select('*, client:clients(id)')
+        .gte('date', month2Start)
+        .lte('date', month2End);
+
+      if (error1) throw error1;
+      if (error2) throw error2;
+
+      const calcMetrics = (revenues: any[]) => ({
+        gross: revenues.reduce((sum, r) => sum + Number(r.gross_revenue || 0), 0),
+        taxes: revenues.reduce((sum, r) => sum + Number(r.taxes || 0), 0),
+        genial: revenues.reduce((sum, r) => sum + Number(r.bank_share || 0), 0),
+        zeve: revenues.reduce((sum, r) => sum + Number(r.our_share || 0), 0),
+        clients: new Set(revenues.map(r => r.client_id).filter(Boolean)).size,
+        transactions: revenues.length,
+      });
+
+      const metrics1 = calcMetrics(revenues1 || []);
+      const metrics2 = calcMetrics(revenues2 || []);
+
+      const calcVariation = (v1: number, v2: number) => ({
+        absolute: v2 - v1,
+        percent: v1 > 0 ? ((v2 - v1) / v1) * 100 : 0,
+      });
+
+      return {
+        month1: { key: month1, metrics: metrics1 },
+        month2: { key: month2, metrics: metrics2 },
+        variation: {
+          gross: calcVariation(metrics1.gross, metrics2.gross),
+          taxes: calcVariation(metrics1.taxes, metrics2.taxes),
+          genial: calcVariation(metrics1.genial, metrics2.genial),
+          zeve: calcVariation(metrics1.zeve, metrics2.zeve),
+          clients: calcVariation(metrics1.clients, metrics2.clients),
+          transactions: calcVariation(metrics1.transactions, metrics2.transactions),
+        },
+      };
+    },
+  });
+}
+
+function getMonthRange(monthKey: string): [string, string] {
+  const [year, month] = monthKey.split('-').map(Number);
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0);
+  return [
+    startDate.toISOString().split('T')[0],
+    endDate.toISOString().split('T')[0],
+  ];
 }

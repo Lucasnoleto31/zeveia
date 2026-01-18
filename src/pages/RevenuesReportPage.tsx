@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,9 +8,14 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, FileDown, DollarSign, TrendingUp, TrendingDown, Users, Receipt, Percent } from 'lucide-react';
-import { useRevenuesReport } from '@/hooks/useRevenuesReport';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Label } from '@/components/ui/label';
+import { Loader2, FileDown, DollarSign, TrendingUp, TrendingDown, Users, Receipt, CalendarIcon, ArrowRightLeft } from 'lucide-react';
+import { useRevenuesReport, useMonthComparison } from '@/hooks/useRevenuesReport';
 import { useAuth } from '@/contexts/AuthContext';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import {
   BarChart,
   Bar,
@@ -29,12 +34,34 @@ import {
 } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { cn } from '@/lib/utils';
+
+type PeriodType = 'preset' | 'custom';
 
 export default function RevenuesReportPage() {
+  const [periodType, setPeriodType] = useState<PeriodType>('preset');
   const [months, setMonths] = useState(12);
+  const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
+  const [customEndDate, setCustomEndDate] = useState<Date | undefined>();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [visibleSeries, setVisibleSeries] = useState<string[]>(['gross', 'taxes', 'genial', 'zeve']);
-  const { data, isLoading, error } = useRevenuesReport(months);
+  
+  // Month comparison state
+  const [compareMonth1, setCompareMonth1] = useState<string | null>(null);
+  const [compareMonth2, setCompareMonth2] = useState<string | null>(null);
+  
+  const reportOptions = useMemo(() => {
+    if (periodType === 'custom' && customStartDate && customEndDate) {
+      return {
+        startDate: format(customStartDate, 'yyyy-MM-dd'),
+        endDate: format(customEndDate, 'yyyy-MM-dd'),
+      };
+    }
+    return { months };
+  }, [periodType, months, customStartDate, customEndDate]);
+
+  const { data, isLoading, error } = useRevenuesReport(reportOptions);
+  const { data: comparisonData, isLoading: isComparing } = useMonthComparison(compareMonth1, compareMonth2);
   const { isSocio } = useAuth();
   const navigate = useNavigate();
 
@@ -58,7 +85,10 @@ export default function RevenuesReportPage() {
     doc.setFontSize(18);
     doc.text('Relatório de Receitas', pageWidth / 2, 20, { align: 'center' });
     doc.setFontSize(10);
-    doc.text(`Período: ${months} meses | Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 28, { align: 'center' });
+    const periodText = periodType === 'custom' && customStartDate && customEndDate
+      ? `${format(customStartDate, 'dd/MM/yyyy')} a ${format(customEndDate, 'dd/MM/yyyy')}`
+      : `${months} meses`;
+    doc.text(`Período: ${periodText} | Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 28, { align: 'center' });
 
     // Summary
     doc.setFontSize(14);
@@ -93,10 +123,15 @@ export default function RevenuesReportPage() {
       ]),
     });
 
-    doc.save(`relatorio-receitas-${months}m.pdf`);
+    doc.save(`relatorio-receitas-${periodType === 'custom' ? 'personalizado' : months + 'm'}.pdf`);
   };
 
   const selectedProductData = data?.revenueByProduct.find(p => p.product === selectedProduct);
+
+  const getMonthLabel = (monthKey: string) => {
+    const found = data?.availableMonths.find(m => m.key === monthKey);
+    return found?.label || monthKey;
+  };
 
   if (isLoading) {
     return (
@@ -127,23 +162,215 @@ export default function RevenuesReportPage() {
             <h1 className="text-2xl font-bold">Relatório de Receitas</h1>
             <p className="text-muted-foreground">Análise completa de receitas e MRR</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Select value={months.toString()} onValueChange={(v) => setMonths(Number(v))}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">Últimos 3 meses</SelectItem>
-                <SelectItem value="6">Últimos 6 meses</SelectItem>
-                <SelectItem value="12">Últimos 12 meses</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-3 flex-wrap">
+            <ToggleGroup 
+              type="single" 
+              value={periodType} 
+              onValueChange={(v) => v && setPeriodType(v as PeriodType)}
+              className="border rounded-md"
+            >
+              <ToggleGroupItem value="preset" className="text-xs">Predefinido</ToggleGroupItem>
+              <ToggleGroupItem value="custom" className="text-xs">Personalizado</ToggleGroupItem>
+            </ToggleGroup>
+
+            {periodType === 'preset' ? (
+              <Select value={months.toString()} onValueChange={(v) => setMonths(Number(v))}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">Últimos 3 meses</SelectItem>
+                  <SelectItem value="6">Últimos 6 meses</SelectItem>
+                  <SelectItem value="12">Últimos 12 meses</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !customStartDate && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customStartDate ? format(customStartDate, 'dd/MM/yyyy') : 'Início'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customStartDate}
+                      onSelect={setCustomStartDate}
+                      locale={ptBR}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-muted-foreground">até</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !customEndDate && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customEndDate ? format(customEndDate, 'dd/MM/yyyy') : 'Fim'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customEndDate}
+                      onSelect={setCustomEndDate}
+                      locale={ptBR}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
             <Button onClick={exportToPDF} variant="outline">
               <FileDown className="h-4 w-4 mr-2" />
               Exportar PDF
             </Button>
           </div>
         </div>
+
+        {/* Month Comparison Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-primary" />
+              <CardTitle>Comparar Meses</CardTitle>
+            </div>
+            <CardDescription>Compare métricas entre dois meses específicos</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Label>Mês 1:</Label>
+                  <Select value={compareMonth1 || ''} onValueChange={(v) => setCompareMonth1(v || null)}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {data.availableMonths.map((m) => (
+                        <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <span className="text-muted-foreground font-bold">vs</span>
+
+                <div className="flex items-center gap-2">
+                  <Label>Mês 2:</Label>
+                  <Select value={compareMonth2 || ''} onValueChange={(v) => setCompareMonth2(v || null)}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {data.availableMonths.map((m) => (
+                        <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(compareMonth1 || compareMonth2) && (
+                  <Button variant="ghost" size="sm" onClick={() => { setCompareMonth1(null); setCompareMonth2(null); }}>
+                    Limpar
+                  </Button>
+                )}
+              </div>
+
+              {isComparing && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              )}
+
+              {comparisonData && !isComparing && (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Métrica</TableHead>
+                        <TableHead className="text-right">{getMonthLabel(comparisonData.month1.key)}</TableHead>
+                        <TableHead className="text-right">{getMonthLabel(comparisonData.month2.key)}</TableHead>
+                        <TableHead className="text-right">Variação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="font-medium">Receita Bruta</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(comparisonData.month1.metrics.gross)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(comparisonData.month2.metrics.gross)}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={comparisonData.variation.gross.percent >= 0 ? 'default' : 'destructive'}>
+                            {formatPercent(comparisonData.variation.gross.percent)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Impostos</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(comparisonData.month1.metrics.taxes)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(comparisonData.month2.metrics.taxes)}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={comparisonData.variation.taxes.percent <= 0 ? 'default' : 'destructive'}>
+                            {formatPercent(comparisonData.variation.taxes.percent)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Genial</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(comparisonData.month1.metrics.genial)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(comparisonData.month2.metrics.genial)}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={comparisonData.variation.genial.percent >= 0 ? 'default' : 'destructive'}>
+                            {formatPercent(comparisonData.variation.genial.percent)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Zeve</TableCell>
+                        <TableCell className="text-right font-mono text-primary">{formatCurrency(comparisonData.month1.metrics.zeve)}</TableCell>
+                        <TableCell className="text-right font-mono text-primary">{formatCurrency(comparisonData.month2.metrics.zeve)}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={comparisonData.variation.zeve.percent >= 0 ? 'default' : 'destructive'}>
+                            {formatPercent(comparisonData.variation.zeve.percent)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Clientes Ativos</TableCell>
+                        <TableCell className="text-right font-mono">{comparisonData.month1.metrics.clients}</TableCell>
+                        <TableCell className="text-right font-mono">{comparisonData.month2.metrics.clients}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={comparisonData.variation.clients.percent >= 0 ? 'default' : 'destructive'}>
+                            {formatPercent(comparisonData.variation.clients.percent)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Transações</TableCell>
+                        <TableCell className="text-right font-mono">{comparisonData.month1.metrics.transactions}</TableCell>
+                        <TableCell className="text-right font-mono">{comparisonData.month2.metrics.transactions}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={comparisonData.variation.transactions.percent >= 0 ? 'default' : 'destructive'}>
+                            {formatPercent(comparisonData.variation.transactions.percent)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {!compareMonth1 && !compareMonth2 && !isComparing && (
+                <div className="text-center py-6 text-muted-foreground">
+                  Selecione dois meses para comparar as métricas
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Summary Cards Row 1 */}
         <div className="grid gap-4 md:grid-cols-4">

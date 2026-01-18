@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { useRevenues, useDeleteRevenue } from '@/hooks/useRevenues';
+import { useRevenuesPaginated, useDeleteRevenue } from '@/hooks/useRevenues';
 import { useClients } from '@/hooks/useClients';
 import { useProducts, useSubproducts } from '@/hooks/useConfiguration';
 import { Revenue } from '@/types/database';
@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { RevenueFormDialog } from '@/components/revenues/RevenueFormDialog';
 import { ImportRevenuesDialog } from '@/components/revenues/ImportRevenuesDialog';
+import { DataTablePagination } from '@/components/shared/DataTablePagination';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -72,8 +73,18 @@ export default function RevenuesPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [editingRevenue, setEditingRevenue] = useState<Revenue | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
-  const { data: revenues, isLoading } = useRevenues(filters);
+  const { data: revenuesData, isLoading } = useRevenuesPaginated({
+    ...filters,
+    page,
+    pageSize,
+  });
+  const revenues = revenuesData?.data || [];
+  const totalCount = revenuesData?.totalCount || 0;
+  const totalPages = revenuesData?.totalPages || 0;
+
   const { data: clients } = useClients({ active: true });
   const { data: products } = useProducts();
   const { data: subproducts } = useSubproducts(filters.productId);
@@ -88,7 +99,7 @@ export default function RevenuesPage() {
            productName.includes(searchTerm.toLowerCase());
   });
 
-  // Calculate totals
+  // Calculate totals for current page
   const totals = filteredRevenues?.reduce(
     (acc, rev) => ({
       gross: acc.gross + Number(rev.gross_revenue),
@@ -121,6 +132,16 @@ export default function RevenuesPage() {
       endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
     });
     setSearchTerm('');
+    setPage(1);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
   };
 
   const hasActiveFilters = filters.clientId || filters.productId || filters.subproductId || searchTerm;
@@ -390,10 +411,15 @@ export default function RevenuesPage() {
             </div>
           )}
 
-          {filteredRevenues && filteredRevenues.length > 0 && (
-            <div className="mt-4 text-sm text-muted-foreground text-right">
-              {filteredRevenues.length} registro(s) encontrado(s)
-            </div>
+          {totalCount > 0 && (
+            <DataTablePagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
           )}
         </CardContent>
       </Card>
