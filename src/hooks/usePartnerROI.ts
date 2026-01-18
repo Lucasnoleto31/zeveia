@@ -14,31 +14,76 @@ interface PartnerROI {
   }[];
 }
 
+// Helper function to fetch all records with pagination
+async function fetchAllClients() {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, partner_id, patrimony, active')
+      .not('partner_id', 'is', null)
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
+async function fetchAllRevenues() {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('revenues')
+      .select('client_id, our_share, date')
+      .order('date', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 export function usePartnerROI() {
   return useQuery({
     queryKey: ['partnerROI'],
     queryFn: async () => {
-      // Get all clients with their partner_id and revenues
-      const { data: clients, error: clientsError } = await supabase
-        .from('clients')
-        .select(`
-          id,
-          name,
-          partner_id,
-          patrimony,
-          active
-        `)
-        .not('partner_id', 'is', null);
+      // Fetch ALL clients with partner_id (paginated internally)
+      const clients = await fetchAllClients();
 
-      if (clientsError) throw clientsError;
-
-      // Get revenues for all clients
-      const { data: revenues, error: revenuesError } = await supabase
-        .from('revenues')
-        .select('client_id, our_share, date')
-        .order('date', { ascending: false });
-
-      if (revenuesError) throw revenuesError;
+      // Fetch ALL revenues (paginated internally)
+      const revenues = await fetchAllRevenues();
 
       // Group data by partner
       const roiByPartner: Record<string, PartnerROI> = {};
@@ -91,32 +136,69 @@ export function usePartnerDetail(partnerId: string | null) {
 
       if (partnerError) throw partnerError;
 
-      // Get clients for this partner
-      const { data: clients, error: clientsError } = await supabase
-        .from('clients')
-        .select(`
-          id,
-          name,
-          type,
-          patrimony,
-          active,
-          created_at
-        `)
-        .eq('partner_id', partnerId)
-        .order('name');
+      // Get clients for this partner (paginated)
+      const PAGE_SIZE = 1000;
+      let allClients: any[] = [];
+      let clientPage = 0;
+      let hasMoreClients = true;
 
-      if (clientsError) throw clientsError;
+      while (hasMoreClients) {
+        const from = clientPage * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
 
-      // Get revenues for all clients
+        const { data, error } = await supabase
+          .from('clients')
+          .select('id, name, type, patrimony, active, created_at')
+          .eq('partner_id', partnerId)
+          .order('name')
+          .range(from, to);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allClients = [...allClients, ...data];
+          hasMoreClients = data.length === PAGE_SIZE;
+          clientPage++;
+        } else {
+          hasMoreClients = false;
+        }
+      }
+
+      const clients = allClients;
+
+      // Get revenues for all clients (paginated)
       const clientIds = clients?.map(c => c.id) || [];
       
-      const { data: revenues, error: revenuesError } = await supabase
-        .from('revenues')
-        .select('client_id, our_share, date')
-        .in('client_id', clientIds.length > 0 ? clientIds : ['00000000-0000-0000-0000-000000000000'])
-        .order('date', { ascending: false });
+      let allRevenues: any[] = [];
+      
+      if (clientIds.length > 0) {
+        let revenuePage = 0;
+        let hasMoreRevenues = true;
 
-      if (revenuesError) throw revenuesError;
+        while (hasMoreRevenues) {
+          const from = revenuePage * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          const { data, error } = await supabase
+            .from('revenues')
+            .select('client_id, our_share, date')
+            .in('client_id', clientIds)
+            .order('date', { ascending: false })
+            .range(from, to);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allRevenues = [...allRevenues, ...data];
+            hasMoreRevenues = data.length === PAGE_SIZE;
+            revenuePage++;
+          } else {
+            hasMoreRevenues = false;
+          }
+        }
+      }
+
+      const revenues = allRevenues;
 
       // Calculate metrics
       const clientsWithMetrics = clients?.map(client => {
