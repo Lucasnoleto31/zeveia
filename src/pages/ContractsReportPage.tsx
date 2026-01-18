@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { useContractsReport } from '@/hooks/useContractsReport';
 import { useAuth } from '@/contexts/AuthContext';
 import { FileBarChart, Download, Loader2, TrendingUp, TrendingDown, Users, FileText, BarChart3, Percent, Clock, PieChart as PieChartIcon } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { PeriodFilter, getPeriodLabel } from '@/components/reports/PeriodFilter';
 import {
   BarChart,
   Bar,
@@ -31,11 +32,21 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function ContractsReportPage() {
+  const [periodType, setPeriodType] = useState<'preset' | 'custom'>('preset');
   const [months, setMonths] = useState(12);
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
   const [chartMode, setChartMode] = useState<'absolute' | 'rate'>('absolute');
-  const { data, isLoading, error } = useContractsReport(months);
+  
+  const { data, isLoading, error } = useContractsReport(
+    periodType === 'custom' && customStartDate && customEndDate
+      ? { startDate: format(customStartDate, 'yyyy-MM-dd'), endDate: format(customEndDate, 'yyyy-MM-dd') }
+      : { months }
+  );
   const { isSocio } = useAuth();
   const navigate = useNavigate();
+
+  const periodLabel = getPeriodLabel(periodType, months, customStartDate, customEndDate);
 
   const formatNumber = (value: number) => {
     return new Intl.NumberFormat('pt-BR').format(Math.round(value));
@@ -55,7 +66,7 @@ export default function ContractsReportPage() {
     doc.setFontSize(18);
     doc.text('Relatório de Contratos', pageWidth / 2, 20, { align: 'center' });
     doc.setFontSize(10);
-    doc.text(`Período: últimos ${months} meses`, pageWidth / 2, 28, { align: 'center' });
+    doc.text(`Período: ${periodLabel}`, pageWidth / 2, 28, { align: 'center' });
 
     // Summary
     doc.setFontSize(12);
@@ -158,18 +169,23 @@ export default function ContractsReportPage() {
               <p className="text-sm text-muted-foreground">Análise de lotes girados e zeragem</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Select value={String(months)} onValueChange={(v) => setMonths(Number(v))}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">Últimos 3 meses</SelectItem>
-                <SelectItem value="6">Últimos 6 meses</SelectItem>
-                <SelectItem value="12">Últimos 12 meses</SelectItem>
-                <SelectItem value="24">Últimos 24 meses</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center gap-3">
+            <PeriodFilter
+              periodType={periodType}
+              onPeriodTypeChange={setPeriodType}
+              months={months}
+              onMonthsChange={setMonths}
+              customStartDate={customStartDate}
+              onCustomStartDateChange={setCustomStartDate}
+              customEndDate={customEndDate}
+              onCustomEndDateChange={setCustomEndDate}
+              presetOptions={[
+                { value: 3, label: 'Últimos 3 meses' },
+                { value: 6, label: 'Últimos 6 meses' },
+                { value: 12, label: 'Últimos 12 meses' },
+                { value: 24, label: 'Últimos 24 meses' },
+              ]}
+            />
             <Button onClick={exportToPDF} variant="outline">
               <Download className="h-4 w-4 mr-2" />
               Exportar PDF

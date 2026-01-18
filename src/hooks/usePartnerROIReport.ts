@@ -43,13 +43,33 @@ export interface PartnerROIReport {
   }[];
 }
 
-export function usePartnerROIReport(months: number = 6) {
+export interface PartnerROIReportOptions {
+  months?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function usePartnerROIReport(options: PartnerROIReportOptions | number = 6) {
+  const opts = typeof options === 'number' ? { months: options } : options;
+  const { months = 6, startDate: customStartDate, endDate: customEndDate } = opts;
+
   return useQuery({
-    queryKey: ['partner-roi-report', months],
+    queryKey: ['partner-roi-report', months, customStartDate, customEndDate],
     queryFn: async (): Promise<PartnerROIReport> => {
-      const endDate = endOfMonth(new Date());
-      const startDate = startOfMonth(subMonths(new Date(), months - 1));
-      const previousStartDate = startOfMonth(subMonths(new Date(), months * 2 - 1));
+      let startDate: Date;
+      let endDate: Date;
+      let previousStartDate: Date;
+
+      if (customStartDate && customEndDate) {
+        startDate = new Date(customStartDate);
+        endDate = new Date(customEndDate);
+        const diffMonths = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+        previousStartDate = subMonths(startDate, diffMonths);
+      } else {
+        endDate = endOfMonth(new Date());
+        startDate = startOfMonth(subMonths(new Date(), months - 1));
+        previousStartDate = startOfMonth(subMonths(new Date(), months * 2 - 1));
+      }
       const currentMonthStart = startOfMonth(new Date());
 
       // Get all active partners

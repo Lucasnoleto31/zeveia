@@ -93,14 +93,31 @@ export interface PlatformsReportData {
   mostEfficientPlatform: string;
 }
 
-export function usePlatformsReport(months: number = 12) {
+export interface PlatformsReportOptions {
+  months?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function usePlatformsReport(options: PlatformsReportOptions | number = 12) {
+  const opts = typeof options === 'number' ? { months: options } : options;
+  const { months = 12, startDate: customStartDate, endDate: customEndDate } = opts;
+
   return useQuery({
-    queryKey: ['platformsReport', months],
+    queryKey: ['platformsReport', months, customStartDate, customEndDate],
     queryFn: async (): Promise<PlatformsReportData> => {
-      const startDate = format(subMonths(startOfMonth(new Date()), months - 1), 'yyyy-MM-dd');
+      let startDateStr: string;
+      let endDateStr: string | undefined;
+
+      if (customStartDate && customEndDate) {
+        startDateStr = customStartDate;
+        endDateStr = customEndDate;
+      } else {
+        startDateStr = format(subMonths(startOfMonth(new Date()), months - 1), 'yyyy-MM-dd');
+      }
 
       // Fetch platform costs with relations
-      const { data: platformCosts, error: costsError } = await supabase
+      let costsQuery = supabase
         .from('platform_costs')
         .select(`
           id,
@@ -111,12 +128,18 @@ export function usePlatformsReport(months: number = 12) {
           client:clients(id, name, state, partner_id, assessor_id, partner:partners(id, name)),
           platform:platforms(id, name)
         `)
-        .gte('date', startDate);
+        .gte('date', startDateStr);
+
+      if (endDateStr) {
+        costsQuery = costsQuery.lte('date', endDateStr);
+      }
+
+      const { data: platformCosts, error: costsError } = await costsQuery;
 
       if (costsError) throw costsError;
 
       // Fetch contracts with platform info
-      const { data: contracts, error: contractsError } = await supabase
+      let contractsQuery = supabase
         .from('contracts')
         .select(`
           id,
@@ -127,7 +150,13 @@ export function usePlatformsReport(months: number = 12) {
           date,
           platform:platforms(id, name)
         `)
-        .gte('date', startDate);
+        .gte('date', startDateStr);
+
+      if (endDateStr) {
+        contractsQuery = contractsQuery.lte('date', endDateStr);
+      }
+
+      const { data: contracts, error: contractsError } = await contractsQuery;
 
       if (contractsError) throw contractsError;
 

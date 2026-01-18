@@ -66,16 +66,33 @@ export interface ContractsReportData {
   topByBestRate: ClientRanking[];
 }
 
-export function useContractsReport(months: number = 12) {
+export interface ContractsReportOptions {
+  months?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function useContractsReport(options: ContractsReportOptions | number = 12) {
+  const opts = typeof options === 'number' ? { months: options } : options;
+  const { months = 12, startDate: customStartDate, endDate: customEndDate } = opts;
+
   return useQuery({
-    queryKey: ['contractsReport', months],
+    queryKey: ['contractsReport', months, customStartDate, customEndDate],
     queryFn: async (): Promise<ContractsReportData> => {
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - months);
-      const startDateStr = startDate.toISOString().split('T')[0];
+      let startDateStr: string;
+      let endDateStr: string | undefined;
+
+      if (customStartDate && customEndDate) {
+        startDateStr = customStartDate;
+        endDateStr = customEndDate;
+      } else {
+        const startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - months);
+        startDateStr = startDate.toISOString().split('T')[0];
+      }
 
       // Fetch contracts with relations
-      const { data: contracts, error: contractsError } = await supabase
+      let query = supabase
         .from('contracts')
         .select(`
           *,
@@ -84,6 +101,12 @@ export function useContractsReport(months: number = 12) {
           platform:platforms(id, name)
         `)
         .gte('date', startDateStr);
+
+      if (endDateStr) {
+        query = query.lte('date', endDateStr);
+      }
+
+      const { data: contracts, error: contractsError } = await query;
 
       if (contractsError) throw contractsError;
 

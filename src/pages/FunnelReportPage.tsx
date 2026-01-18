@@ -1,15 +1,9 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   BarChart,
   Bar,
@@ -25,10 +19,11 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { Filter, Download, Loader2, TrendingUp, Users, Trophy, Clock } from 'lucide-react';
+import { Download, Loader2, TrendingUp, Users, Trophy, Clock } from 'lucide-react';
 import { useFunnelReport } from '@/hooks/useFunnelReport';
 import { FunnelChart } from '@/components/reports/FunnelChart';
 import { ConversionRateCard } from '@/components/reports/ConversionRateCard';
+import { PeriodFilter, getPeriodLabel } from '@/components/reports/PeriodFilter';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -44,8 +39,18 @@ const getRetentionColor = (rate: number): string => {
 };
 
 export default function FunnelReportPage() {
+  const [periodType, setPeriodType] = useState<'preset' | 'custom'>('preset');
   const [months, setMonths] = useState(6);
-  const { data, isLoading } = useFunnelReport(months);
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
+  
+  const { data, isLoading } = useFunnelReport(
+    periodType === 'custom' && customStartDate && customEndDate
+      ? { startDate: format(customStartDate, 'yyyy-MM-dd'), endDate: format(customEndDate, 'yyyy-MM-dd') }
+      : { months }
+  );
+
+  const periodLabel = getPeriodLabel(periodType, months, customStartDate, customEndDate);
 
   const exportToPDF = () => {
     if (!data) return;
@@ -58,7 +63,7 @@ export default function FunnelReportPage() {
     doc.text('Relatório de Funil de Vendas', pageWidth / 2, 20, { align: 'center' });
 
     doc.setFontSize(12);
-    doc.text(`Período: Últimos ${months} meses`, pageWidth / 2, 30, { align: 'center' });
+    doc.text(`Período: ${periodLabel}`, pageWidth / 2, 30, { align: 'center' });
 
     // Metrics
     doc.setFontSize(14);
@@ -165,18 +170,17 @@ export default function FunnelReportPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Select value={months.toString()} onValueChange={(v) => setMonths(parseInt(v))}>
-              <SelectTrigger className="w-[140px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">Últimos 3 meses</SelectItem>
-                <SelectItem value="6">Últimos 6 meses</SelectItem>
-                <SelectItem value="12">Últimos 12 meses</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodFilter
+              periodType={periodType}
+              onPeriodTypeChange={setPeriodType}
+              months={months}
+              onMonthsChange={setMonths}
+              customStartDate={customStartDate}
+              onCustomStartDateChange={setCustomStartDate}
+              customEndDate={customEndDate}
+              onCustomEndDateChange={setCustomEndDate}
+            />
 
             <Button variant="outline" onClick={exportToPDF}>
               <Download className="h-4 w-4 mr-2" />

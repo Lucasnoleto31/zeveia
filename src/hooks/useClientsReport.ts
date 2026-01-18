@@ -147,13 +147,30 @@ async function fetchAllContracts(startDateStr: string) {
   return allData;
 }
 
-export function useClientsReport(months: number = 12) {
+export interface ClientsReportOptions {
+  months?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export function useClientsReport(options: ClientsReportOptions | number = 12) {
+  const opts = typeof options === 'number' ? { months: options } : options;
+  const { months = 12, startDate: customStartDate, endDate: customEndDate } = opts;
+
   return useQuery({
-    queryKey: ['clientsReport', months],
+    queryKey: ['clientsReport', months, customStartDate, customEndDate],
     queryFn: async (): Promise<ClientsReportData> => {
       const now = new Date();
-      const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
-      const startDateStr = startDate.toISOString().split('T')[0];
+      let startDateStr: string;
+      let endDateStr: string | undefined;
+
+      if (customStartDate && customEndDate) {
+        startDateStr = customStartDate;
+        endDateStr = customEndDate;
+      } else {
+        const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+        startDateStr = startDate.toISOString().split('T')[0];
+      }
       
       // Fetch all clients with pagination
       const clients = await fetchAllClients();
