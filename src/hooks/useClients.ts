@@ -280,18 +280,52 @@ export function useBulkUpdateClients() {
   });
 }
 
+// Helper function for batch fetching client data
+async function batchFetchByClientId(
+  table: 'revenues' | 'contracts' | 'platform_costs',
+  clientId: string,
+  selectFields: string
+): Promise<any[]> {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from(table)
+      .select(selectFields)
+      .eq('client_id', clientId)
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 // Client metrics for 360 view
 export function useClientMetrics(clientId: string) {
   return useQuery({
     queryKey: ['clientMetrics', clientId],
     queryFn: async () => {
-      // Fetch revenues
-      const { data: revenues, error: revenuesError } = await supabase
-        .from('revenues')
-        .select('*, product:products(*)')
-        .eq('client_id', clientId);
-
-      if (revenuesError) throw revenuesError;
+      // Batch fetch revenues (unlimited)
+      const revenues = await batchFetchByClientId(
+        'revenues',
+        clientId,
+        '*, product:products(*)'
+      );
 
       // Fetch all products
       const { data: allProducts, error: productsError } = await supabase
@@ -301,21 +335,19 @@ export function useClientMetrics(clientId: string) {
 
       if (productsError) throw productsError;
 
-      // Fetch contracts with assets
-      const { data: contracts, error: contractsError } = await supabase
-        .from('contracts')
-        .select('*, asset:assets(*)')
-        .eq('client_id', clientId);
+      // Batch fetch contracts (unlimited)
+      const contracts = await batchFetchByClientId(
+        'contracts',
+        clientId,
+        '*, asset:assets(*)'
+      );
 
-      if (contractsError) throw contractsError;
-
-      // Fetch platform costs
-      const { data: platformCosts, error: platformCostsError } = await supabase
-        .from('platform_costs')
-        .select('*, platform:platforms(*)')
-        .eq('client_id', clientId);
-
-      if (platformCostsError) throw platformCostsError;
+      // Batch fetch platform costs (unlimited)
+      const platformCosts = await batchFetchByClientId(
+        'platform_costs',
+        clientId,
+        '*, platform:platforms(*)'
+      );
 
       // Fetch interactions
       const { data: interactions, error: interactionsError } = await supabase
