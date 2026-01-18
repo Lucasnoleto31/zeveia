@@ -75,6 +75,7 @@ export function MergeClientsDialog({ open, onOpenChange, clients }: MergeClients
       targetClientId,
       sourceClientIds,
       deleteSourceClients,
+      allClients: clients || [],
     });
 
     setShowConfirmDialog(false);
@@ -108,6 +109,7 @@ export function MergeClientsDialog({ open, onOpenChange, clients }: MergeClients
           targetClientId: target.id,
           sourceClientIds: sources,
           deleteSourceClients,
+          allClients: clients || [],
         });
       } catch (error) {
         // Continue with next group even if one fails

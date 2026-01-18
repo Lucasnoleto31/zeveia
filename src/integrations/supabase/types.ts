@@ -110,6 +110,41 @@ export type Database = {
         }
         Relationships: []
       }
+      client_account_mappings: {
+        Row: {
+          account_number: string
+          client_id: string
+          created_at: string | null
+          id: string
+          merged_at: string | null
+          original_client_name: string | null
+        }
+        Insert: {
+          account_number: string
+          client_id: string
+          created_at?: string | null
+          id?: string
+          merged_at?: string | null
+          original_client_name?: string | null
+        }
+        Update: {
+          account_number?: string
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          merged_at?: string | null
+          original_client_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_account_mappings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           account_number: string | null
