@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useUnreadAlertsCount } from '@/hooks/useAlerts';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +14,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Moon, Sun, LogOut, User, Bell } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
   title?: string;
@@ -21,6 +23,8 @@ interface HeaderProps {
 export function Header({ title }: HeaderProps) {
   const { profile, isSocio, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { data: unreadCount = 0 } = useUnreadAlertsCount();
+  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
@@ -48,11 +52,18 @@ export function Header({ title }: HeaderProps) {
       </Button>
 
       {/* Notifications */}
-      <Button variant="ghost" size="icon" className="h-9 w-9 relative">
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="h-9 w-9 relative"
+        onClick={() => navigate('/alerts')}
+      >
         <Bell className="h-4 w-4" />
-        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
-          3
-        </span>
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
         <span className="sr-only">Notificações</span>
       </Button>
 
