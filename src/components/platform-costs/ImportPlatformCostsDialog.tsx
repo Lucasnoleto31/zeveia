@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { useImportPlatformCosts } from '@/hooks/usePlatformCosts';
 import { useClients, useCreateClient } from '@/hooks/useClients';
 import { usePlatforms } from '@/hooks/useConfiguration';
+import { usePartners } from '@/hooks/usePartners';
 import { findClientMatchWithMappings, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
 import { useAccountMappings } from '@/hooks/useAccountMappings';
 import { parseExcelDate } from '@/utils/excelDateParser';
@@ -50,6 +51,7 @@ interface ClientToCreate {
   accountNumber?: string;
   cpf?: string;
   cnpj?: string;
+  partnerId?: string;
 }
 
 interface ParsedCost {
@@ -58,6 +60,7 @@ interface ParsedCost {
   cpf?: string;
   cnpj?: string;
   clientName?: string;
+  partnerName?: string;
   platformName: string;
   value: number;
   isValid: boolean;
@@ -68,6 +71,8 @@ interface ParsedCost {
   matchMethod: MatchMethod;
   needsClientCreation?: boolean;
   clientToCreate?: ClientToCreate;
+  matchedPartnerId?: string;
+  matchedPartnerName?: string;
 }
 
 export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatformCostsDialogProps) {
@@ -75,6 +80,7 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
   const createClient = useCreateClient();
   const { data: clients } = useClients({});
   const { data: platforms } = usePlatforms();
+  const { data: partners } = usePartners({ active: true });
   const { data: accountMappings } = useAccountMappings();
   const { user } = useAuth();
 
@@ -90,6 +96,7 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
         CPF: '',
         CNPJ: '',
         Cliente: '',
+        Parceiro: 'Nome do Parceiro',
         Plataforma: 'Nome da Plataforma',
         Valor: '150.00',
       },
@@ -122,12 +129,26 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
           const cpf = row['CPF']?.toString().trim();
           const cnpj = row['CNPJ']?.toString().trim();
           const clientName = row['Cliente']?.toString().trim();
+          const partnerName = row['Parceiro']?.toString().trim();
           const platformName = row['Plataforma']?.toString().trim();
           const value = parseFloat(row['Valor']) || 0;
 
           // Validate date
           if (!date) {
             errors.push('Data inválida');
+          }
+
+          // Find partner by name (case-insensitive)
+          let matchedPartnerId: string | undefined;
+          let matchedPartnerName: string | undefined;
+          if (partnerName && partners) {
+            const matchedPartner = partners.find(
+              (p) => p.name.toLowerCase() === partnerName.toLowerCase()
+            );
+            if (matchedPartner) {
+              matchedPartnerId = matchedPartner.id;
+              matchedPartnerName = matchedPartner.name;
+            }
           }
 
           // Find client using hierarchical matching
@@ -160,6 +181,7 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
                 accountNumber,
                 cpf,
                 cnpj,
+                partnerId: matchedPartnerId,
               };
               matchedClientName = generatedName;
             }
@@ -181,6 +203,7 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
             cpf,
             cnpj,
             clientName,
+            partnerName,
             platformName,
             value,
             isValid: errors.length === 0,
@@ -191,6 +214,8 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
             matchMethod,
             needsClientCreation,
             clientToCreate,
+            matchedPartnerId,
+            matchedPartnerName,
           };
         });
 
@@ -203,7 +228,7 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
     };
 
     reader.readAsBinaryString(file);
-  }, [clients, platforms, accountMappings]);
+  }, [clients, platforms, partners, accountMappings]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && parseFile(files[0]),
@@ -256,6 +281,7 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
               type: clientType,
               active: false, // Create as inactive
               assessor_id: user?.id || null,
+              partner_id: clientData.partnerId || null,
             });
             
             clientIdMap.set(key, newClient.id);

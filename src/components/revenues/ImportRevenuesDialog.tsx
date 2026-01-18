@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { useImportRevenues } from '@/hooks/useRevenues';
 import { useClients, useCreateClient } from '@/hooks/useClients';
 import { useProducts, useSubproducts } from '@/hooks/useConfiguration';
+import { usePartners } from '@/hooks/usePartners';
 import { findClientMatch, findClientMatchWithMappings, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
 import { useAccountMappings } from '@/hooks/useAccountMappings';
 import { parseExcelDate } from '@/utils/excelDateParser';
@@ -50,6 +51,7 @@ interface ClientToCreate {
   cpf?: string;
   cnpj?: string;
   name?: string;
+  partnerId?: string;
 }
 
 interface ParsedRevenue {
@@ -58,6 +60,7 @@ interface ParsedRevenue {
   cpf?: string;
   cnpj?: string;
   clientName?: string;
+  partnerName?: string;
   productName: string;
   subproductName?: string;
   grossRevenue: number;
@@ -72,6 +75,8 @@ interface ParsedRevenue {
   matchMethod: MatchMethod;
   needsClientCreation: boolean;
   clientToCreate?: ClientToCreate;
+  matchedPartnerId?: string;
+  matchedPartnerName?: string;
 }
 
 export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialogProps) {
@@ -81,6 +86,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
   const { data: clients } = useClients({});
   const { data: products } = useProducts();
   const { data: subproducts } = useSubproducts();
+  const { data: partners } = usePartners({ active: true });
   const { data: accountMappings } = useAccountMappings();
 
   const [parsedData, setParsedData] = useState<ParsedRevenue[]>([]);
@@ -95,6 +101,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
         CPF: '',
         CNPJ: '',
         Cliente: '',
+        Parceiro: 'Nome do Parceiro',
         Produto: 'Nome do Produto',
         Subproduto: 'Opcional',
         'Receita Bruta': '1000.00',
@@ -131,6 +138,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
           const cpf = row['CPF']?.toString().trim();
           const cnpj = row['CNPJ']?.toString().trim();
           const clientName = row['Cliente']?.toString().trim();
+          const partnerName = row['Parceiro']?.toString().trim();
           const productName = row['Produto']?.toString().trim();
           const subproductName = row['Subproduto']?.toString().trim();
           const grossRevenue = parseFloat(row['Receita Bruta']) || 0;
@@ -141,6 +149,19 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
           // Validate date
           if (!date) {
             errors.push('Data inválida');
+          }
+
+          // Find partner by name (case-insensitive)
+          let matchedPartnerId: string | undefined;
+          let matchedPartnerName: string | undefined;
+          if (partnerName && partners) {
+            const matchedPartner = partners.find(
+              (p) => p.name.toLowerCase() === partnerName.toLowerCase()
+            );
+            if (matchedPartner) {
+              matchedPartnerId = matchedPartner.id;
+              matchedPartnerName = matchedPartner.name;
+            }
           }
 
           // Find client using hierarchical matching
@@ -172,6 +193,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
                 cpf,
                 cnpj,
                 name: clientName,
+                partnerId: matchedPartnerId,
               };
             }
           }
@@ -195,6 +217,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
             cpf,
             cnpj,
             clientName,
+            partnerName,
             productName,
             subproductName,
             grossRevenue,
@@ -209,6 +232,8 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
             matchMethod,
             needsClientCreation,
             clientToCreate,
+            matchedPartnerId,
+            matchedPartnerName,
           };
         });
 
@@ -221,7 +246,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
     };
 
     reader.readAsBinaryString(file);
-  }, [clients, products, accountMappings]);
+  }, [clients, products, partners, accountMappings]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && parseFile(files[0]),
@@ -273,6 +298,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
           cnpj: clientData.cnpj || null,
           active: false, // INATIVO - cliente que já migrou
           assessor_id: user!.id,
+          partner_id: clientData.partnerId || null,
         });
         createdClientIds.set(key, newClient.id);
         clientsCreated++;
