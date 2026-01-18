@@ -13,6 +13,7 @@ import ClientsPage from "./pages/ClientsPage";
 import ClientDetailPage from "./pages/ClientDetailPage";
 import RevenuesPage from "./pages/RevenuesPage";
 import ContractsPage from "./pages/ContractsPage";
+import PartnersPage from "./pages/PartnersPage";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -41,8 +42,7 @@ const App = () => (
               <Route path="/clients/:id" element={<ProtectedRoute><ClientDetailPage /></ProtectedRoute>} />
               <Route path="/revenues" element={<ProtectedRoute><RevenuesPage /></ProtectedRoute>} />
               <Route path="/contracts" element={<ProtectedRoute><ContractsPage /></ProtectedRoute>} />
-              <Route path="/partners" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-              <Route path="/partners/:id" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+              <Route path="/partners" element={<ProtectedRoute><PartnersPage /></ProtectedRoute>} />
               <Route path="/platforms" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/goals" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/alerts" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
