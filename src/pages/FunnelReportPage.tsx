@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -24,7 +25,7 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { Filter, Download, Loader2, TrendingUp } from 'lucide-react';
+import { Filter, Download, Loader2, TrendingUp, Users, Trophy, Clock } from 'lucide-react';
 import { useFunnelReport } from '@/hooks/useFunnelReport';
 import { FunnelChart } from '@/components/reports/FunnelChart';
 import { ConversionRateCard } from '@/components/reports/ConversionRateCard';
@@ -32,6 +33,15 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#06b6d4', '#ec4899'];
+
+// Function to get heatmap color based on retention percentage
+const getRetentionColor = (rate: number): string => {
+  if (rate >= 80) return 'bg-green-600 text-white';
+  if (rate >= 60) return 'bg-green-500 text-white';
+  if (rate >= 40) return 'bg-yellow-500 text-white';
+  if (rate >= 20) return 'bg-orange-500 text-white';
+  return 'bg-red-500 text-white';
+};
 
 export default function FunnelReportPage() {
   const [months, setMonths] = useState(6);
@@ -90,6 +100,30 @@ export default function FunnelReportPage() {
         `${a.rate.toFixed(1)}%`,
       ]),
     });
+
+    // Cohort Analysis
+    if (data.cohortData.length > 0) {
+      doc.addPage();
+      doc.setFontSize(14);
+      doc.text('Análise de Cohort', 14, 20);
+
+      const cohortHeaders = ['Cohort', 'Total', 'Mês 0', 'Mês 1', 'Mês 2', 'Mês 3', 'Conv. Final'];
+      const cohortBody = data.cohortData.map((c) => [
+        c.cohort,
+        c.totalLeads.toString(),
+        c.retention[0] ? `${c.retention[0].activeRate.toFixed(0)}%` : '-',
+        c.retention[1] ? `${c.retention[1].activeRate.toFixed(0)}%` : '-',
+        c.retention[2] ? `${c.retention[2].activeRate.toFixed(0)}%` : '-',
+        c.retention[3] ? `${c.retention[3].activeRate.toFixed(0)}%` : '-',
+        `${c.finalConversionRate.toFixed(1)}%`,
+      ]);
+
+      autoTable(doc, {
+        startY: 25,
+        head: [cohortHeaders],
+        body: cohortBody,
+      });
+    }
 
     doc.save('relatorio-funil-vendas.pdf');
   };
@@ -366,6 +400,164 @@ export default function FunnelReportPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Cohort Analysis Section */}
+        {data.cohortData.length > 0 && (
+          <>
+            {/* Cohort Metrics Cards */}
+            <div className="grid sm:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <Trophy className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Melhor Cohort</p>
+                      <p className="text-xl font-bold">
+                        {data.bestCohort?.cohort || '-'}
+                        {data.bestCohort && (
+                          <span className="text-sm font-normal text-green-600 ml-2">
+                            {data.bestCohort.rate.toFixed(1)}%
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+                      <Users className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Retenção Média (3 meses)</p>
+                      <p className="text-xl font-bold">
+                        {data.avgRetentionAt3Months.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
+                      <Clock className="h-5 w-5 text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Tempo Médio Conversão</p>
+                      <p className="text-xl font-bold">
+                        {data.avgConversionDays.toFixed(0)} dias
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Cohort Retention Heatmap */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  Análise de Cohort - Retenção
+                  <Badge variant="secondary" className="font-normal">
+                    % de leads ativos + convertidos por mês
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-4 font-medium">Cohort</th>
+                        <th className="text-center py-3 px-4 font-medium">Total</th>
+                        <th className="text-center py-3 px-2 font-medium">Mês 0</th>
+                        <th className="text-center py-3 px-2 font-medium">Mês 1</th>
+                        <th className="text-center py-3 px-2 font-medium">Mês 2</th>
+                        <th className="text-center py-3 px-2 font-medium">Mês 3</th>
+                        <th className="text-center py-3 px-2 font-medium">Mês 4</th>
+                        <th className="text-center py-3 px-2 font-medium">Mês 5</th>
+                        <th className="text-center py-3 px-4 font-medium">Conv. Final</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.cohortData.map((cohort) => (
+                        <tr key={cohort.cohort} className="border-b last:border-0">
+                          <td className="py-3 px-4 font-medium">{cohort.cohort}</td>
+                          <td className="text-center py-3 px-4">{cohort.totalLeads}</td>
+                          {[0, 1, 2, 3, 4, 5].map((monthIndex) => {
+                            const retention = cohort.retention[monthIndex];
+                            if (!retention) {
+                              return (
+                                <td key={monthIndex} className="text-center py-3 px-2">
+                                  <span className="text-muted-foreground">-</span>
+                                </td>
+                              );
+                            }
+                            return (
+                              <td key={monthIndex} className="text-center py-2 px-1">
+                                <span
+                                  className={`inline-block px-2 py-1 rounded text-xs font-medium min-w-[48px] ${getRetentionColor(retention.activeRate)}`}
+                                >
+                                  {retention.activeRate.toFixed(0)}%
+                                </span>
+                              </td>
+                            );
+                          })}
+                          <td className="text-center py-3 px-4">
+                            <span className={`font-medium ${cohort.finalConversionRate >= 20 ? 'text-green-600' : cohort.finalConversionRate >= 10 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                              {cohort.finalConversionRate.toFixed(1)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Cohort Conversion Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Conversão por Cohort</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={data.cohortData.map((c) => ({
+                      cohort: c.cohort,
+                      convertidos: c.retention[c.retention.length - 1]?.converted || 0,
+                      ativos: c.retention[c.retention.length - 1]?.active || 0,
+                      perdidos: c.retention[c.retention.length - 1]?.lost || 0,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="cohort" className="text-xs" />
+                    <YAxis className="text-xs" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        borderColor: 'hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="convertidos" name="Convertidos" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="ativos" name="Em Andamento" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="perdidos" name="Perdidos" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </MainLayout>
   );
