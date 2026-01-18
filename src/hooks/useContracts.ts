@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Contract } from '@/types/database';
+import { PaginatedResult } from './useClients';
 
 interface ContractFilters {
   clientId?: string;
@@ -8,11 +9,70 @@ interface ContractFilters {
   platformId?: string;
   startDate?: string;
   endDate?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-export function useContracts(filters?: ContractFilters) {
+// Paginated contracts for listing pages
+export function useContractsPaginated(filters?: ContractFilters): ReturnType<typeof useQuery<PaginatedResult<Contract>>> {
+  const page = filters?.page || 1;
+  const pageSize = filters?.pageSize || 50;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   return useQuery({
-    queryKey: ['contracts', filters],
+    queryKey: ['contracts', 'paginated', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('contracts')
+        .select(`
+          *,
+          client:clients(*),
+          asset:assets(*),
+          platform:platforms(*)
+        `, { count: 'exact' })
+        .order('date', { ascending: false })
+        .range(from, to);
+
+      if (filters?.clientId) {
+        query = query.eq('client_id', filters.clientId);
+      }
+
+      if (filters?.assetId) {
+        query = query.eq('asset_id', filters.assetId);
+      }
+
+      if (filters?.platformId) {
+        query = query.eq('platform_id', filters.platformId);
+      }
+
+      if (filters?.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+
+      if (filters?.endDate) {
+        query = query.lte('date', filters.endDate);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      
+      const totalCount = count || 0;
+      const totalPages = Math.ceil(totalCount / pageSize);
+      
+      return {
+        data: data as Contract[],
+        totalCount,
+        totalPages,
+      };
+    },
+  });
+}
+
+// Non-paginated contracts for backwards compatibility
+export function useContracts(filters?: Omit<ContractFilters, 'page' | 'pageSize'>) {
+  return useQuery({
+    queryKey: ['contracts', 'all', filters],
     queryFn: async () => {
       let query = supabase
         .from('contracts')
@@ -64,9 +124,9 @@ export function useContract(id: string) {
           platform:platforms(*)
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as Contract;
+      return data as Contract | null;
     },
     enabled: !!id,
   });

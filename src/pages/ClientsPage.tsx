@@ -6,7 +6,8 @@ import { ClientsTable } from '@/components/clients/ClientsTable';
 import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import { ImportClientsDialog } from '@/components/clients/ImportClientsDialog';
 import { MergeClientsDialog } from '@/components/clients/MergeClientsDialog';
-import { useClients } from '@/hooks/useClients';
+import { DataTablePagination } from '@/components/shared/DataTablePagination';
+import { useClientsPaginated, useClients } from '@/hooks/useClients';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFindDuplicates } from '@/hooks/useMergeClients';
 import { Client, ClientType, InvestorProfile } from '@/types/database';
@@ -29,13 +30,15 @@ export default function ClientsPage() {
   const navigate = useNavigate();
   const { user, isSocio } = useAuth();
   const [filters, setFilters] = useState<ClientFiltersState>({ search: '', active: true });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isMergeOpen, setIsMergeOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formType, setFormType] = useState<ClientType>('pf');
 
-  const { data: clients, isLoading } = useClients({
+  const { data: paginatedData, isLoading } = useClientsPaginated({
     search: filters.search || undefined,
     type: filters.type,
     profile: filters.profile,
@@ -43,7 +46,19 @@ export default function ClientsPage() {
     partnerId: filters.partnerId,
     assessorId: isSocio ? filters.assessorId : user?.id,
     active: filters.active,
+    page,
+    pageSize,
   });
+
+  // For merge functionality, we need all clients
+  const { data: allClients } = useClients({
+    assessorId: isSocio ? filters.assessorId : user?.id,
+    active: filters.active,
+  });
+
+  const clients = paginatedData?.data || [];
+  const totalCount = paginatedData?.totalCount || 0;
+  const totalPages = paginatedData?.totalPages || 0;
 
   const handleEdit = (client: Client) => {
     setEditingClient(client);
@@ -69,7 +84,7 @@ export default function ClientsPage() {
   const pfCount = clients?.filter(c => c.type === 'pf').length || 0;
   const pjCount = clients?.filter(c => c.type === 'pj').length || 0;
   
-  const duplicateGroups = useFindDuplicates(clients);
+  const duplicateGroups = useFindDuplicates(allClients);
   const duplicateCount = duplicateGroups.length;
 
   return (
@@ -79,7 +94,10 @@ export default function ClientsPage() {
         <div className="flex flex-col lg:flex-row gap-4 justify-between">
           <ClientFilters
             filters={filters}
-            onFiltersChange={setFilters}
+            onFiltersChange={(newFilters) => {
+              setFilters(newFilters);
+              setPage(1); // Reset to first page on filter change
+            }}
             showAssessorFilter={isSocio}
           />
           <div className="flex gap-2 flex-shrink-0">
@@ -113,7 +131,7 @@ export default function ClientsPage() {
             <TabsTrigger value="all" className="gap-2">
               Todos
               <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                {clients?.length || 0}
+                {totalCount}
               </span>
             </TabsTrigger>
             <TabsTrigger value="pf" className="gap-2">
@@ -136,21 +154,21 @@ export default function ClientsPage() {
             <>
               <TabsContent value="all">
                 <ClientsTable 
-                  clients={clients || []} 
+                  clients={clients} 
                   onEdit={handleEdit}
                   onView={handleView}
                 />
               </TabsContent>
               <TabsContent value="pf">
                 <ClientsTable 
-                  clients={clients?.filter(c => c.type === 'pf') || []} 
+                  clients={clients.filter(c => c.type === 'pf')} 
                   onEdit={handleEdit}
                   onView={handleView}
                 />
               </TabsContent>
               <TabsContent value="pj">
                 <ClientsTable 
-                  clients={clients?.filter(c => c.type === 'pj') || []} 
+                  clients={clients.filter(c => c.type === 'pj')} 
                   onEdit={handleEdit}
                   onView={handleView}
                 />
@@ -158,6 +176,18 @@ export default function ClientsPage() {
             </>
           )}
         </Tabs>
+
+        {/* Pagination */}
+        {totalCount > 0 && (
+          <DataTablePagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* Dialogs */}
@@ -176,7 +206,7 @@ export default function ClientsPage() {
       <MergeClientsDialog
         open={isMergeOpen}
         onOpenChange={setIsMergeOpen}
-        clients={clients || []}
+        clients={allClients || []}
       />
     </MainLayout>
   );

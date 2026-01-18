@@ -1,17 +1,72 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PlatformCost } from '@/types/database';
+import { PaginatedResult } from './useClients';
 
 interface PlatformCostFilters {
   clientId?: string;
   platformId?: string;
   startDate?: string;
   endDate?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-export function usePlatformCosts(filters?: PlatformCostFilters) {
+// Paginated platform costs for listing pages
+export function usePlatformCostsPaginated(filters?: PlatformCostFilters): ReturnType<typeof useQuery<PaginatedResult<PlatformCost>>> {
+  const page = filters?.page || 1;
+  const pageSize = filters?.pageSize || 50;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   return useQuery({
-    queryKey: ['platformCosts', filters],
+    queryKey: ['platformCosts', 'paginated', filters],
+    queryFn: async () => {
+      let query = supabase
+        .from('platform_costs')
+        .select(`
+          *,
+          client:clients(*),
+          platform:platforms(*)
+        `, { count: 'exact' })
+        .order('date', { ascending: false })
+        .range(from, to);
+
+      if (filters?.clientId) {
+        query = query.eq('client_id', filters.clientId);
+      }
+
+      if (filters?.platformId) {
+        query = query.eq('platform_id', filters.platformId);
+      }
+
+      if (filters?.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+
+      if (filters?.endDate) {
+        query = query.lte('date', filters.endDate);
+      }
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      
+      const totalCount = count || 0;
+      const totalPages = Math.ceil(totalCount / pageSize);
+      
+      return {
+        data: data as PlatformCost[],
+        totalCount,
+        totalPages,
+      };
+    },
+  });
+}
+
+// Non-paginated platform costs for backwards compatibility
+export function usePlatformCosts(filters?: Omit<PlatformCostFilters, 'page' | 'pageSize'>) {
+  return useQuery({
+    queryKey: ['platformCosts', 'all', filters],
     queryFn: async () => {
       let query = supabase
         .from('platform_costs')
@@ -57,9 +112,9 @@ export function usePlatformCost(id: string) {
           platform:platforms(*)
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as PlatformCost;
+      return data as PlatformCost | null;
     },
     enabled: !!id,
   });
