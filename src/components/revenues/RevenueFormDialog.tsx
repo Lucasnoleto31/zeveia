@@ -230,8 +230,8 @@ export function RevenueFormDialog({ open, onOpenChange, revenue }: RevenueFormDi
                   <FormItem>
                     <FormLabel>Subproduto</FormLabel>
                     <Select 
-                      onValueChange={field.onChange} 
-                      value={field.value}
+                      onValueChange={(value) => field.onChange(value === 'none' ? '' : value)} 
+                      value={field.value || 'none'}
                       disabled={!selectedProductId}
                     >
                       <FormControl>
@@ -240,7 +240,7 @@ export function RevenueFormDialog({ open, onOpenChange, revenue }: RevenueFormDi
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
+                        <SelectItem value="none">Nenhum</SelectItem>
                         {subproducts?.filter(s => s.active).map((subproduct) => (
                           <SelectItem key={subproduct.id} value={subproduct.id}>
                             {subproduct.name}
