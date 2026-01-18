@@ -9,11 +9,13 @@ import {
   Layers,
   Monitor,
   XCircle,
-  BarChart3
+  BarChart3,
+  Users
 } from 'lucide-react';
 import { ConfigurationList } from '@/components/settings/ConfigurationList';
 import { SubproductsList } from '@/components/settings/SubproductsList';
 import { AssetsList } from '@/components/settings/AssetsList';
+import { UserManagement } from '@/components/settings/UserManagement';
 import {
   useOrigins,
   useCreateOrigin,
@@ -105,8 +107,12 @@ export default function SettingsPage() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="origins" className="space-y-6">
+        <Tabs defaultValue="users" className="space-y-6">
           <TabsList className="flex flex-wrap h-auto gap-1">
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="h-4 w-4" />
+              Usuários
+            </TabsTrigger>
             <TabsTrigger value="origins" className="gap-2">
               <MapPin className="h-4 w-4" />
               Origens
@@ -136,6 +142,35 @@ export default function SettingsPage() {
               Motivos de Perda
             </TabsTrigger>
           </TabsList>
+
+          {/* Users */}
+          <TabsContent value="users">
+            <Card>
+              <CardContent className="pt-6">
+                <UserManagement />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Origins */}
+          <TabsContent value="origins">
+            <Card>
+              <CardContent className="pt-6">
+                <ConfigurationList
+                  title="Origem"
+                  description="Origens de leads e clientes (indicação, tráfego pago, etc.)"
+                  items={origins}
+                  isLoading={originsLoading}
+                  onCreate={async (name) => { await createOrigin.mutateAsync(name); }}
+                  onUpdate={async (id, data) => { await updateOrigin.mutateAsync({ id, ...data }); }}
+                  onDelete={async (id) => { await deleteOrigin.mutateAsync(id); }}
+                  createPending={createOrigin.isPending}
+                  updatePending={updateOrigin.isPending}
+                  deletePending={deleteOrigin.isPending}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Origins */}
           <TabsContent value="origins">
