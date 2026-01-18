@@ -24,6 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { useImportRevenues } from '@/hooks/useRevenues';
 import { useClients } from '@/hooks/useClients';
 import { useProducts, useSubproducts } from '@/hooks/useConfiguration';
+import { findClientMatch, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
+import { MatchConfidenceBadge } from '@/components/imports/MatchConfidenceBadge';
 import { toast } from 'sonner';
 import {
   Upload,
@@ -41,7 +43,10 @@ interface ImportRevenuesDialogProps {
 
 interface ParsedRevenue {
   date: string;
-  clientName: string;
+  accountNumber?: string;
+  cpf?: string;
+  cnpj?: string;
+  clientName?: string;
   productName: string;
   subproductName?: string;
   grossRevenue: number;
@@ -50,11 +55,15 @@ interface ParsedRevenue {
   ourShare: number;
   isValid: boolean;
   errors: string[];
+  matchedClientId?: string;
+  matchedClientName?: string;
+  matchConfidence: MatchConfidence;
+  matchMethod: MatchMethod;
 }
 
 export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialogProps) {
   const importRevenues = useImportRevenues();
-  const { data: clients } = useClients({ active: true });
+  const { data: clients } = useClients({});
   const { data: products } = useProducts();
   const { data: subproducts } = useSubproducts();
 
@@ -66,7 +75,10 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
     const template = [
       {
         Data: '2024-01-15',
-        Cliente: 'Nome do Cliente',
+        'Número Conta': '123456',
+        CPF: '',
+        CNPJ: '',
+        Cliente: '',
         Produto: 'Nome do Produto',
         Subproduto: 'Opcional',
         'Receita Bruta': '1000.00',
@@ -98,6 +110,9 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
           const errors: string[] = [];
 
           const date = row['Data']?.toString().trim();
+          const accountNumber = row['Número Conta']?.toString().trim() || row['Numero Conta']?.toString().trim();
+          const cpf = row['CPF']?.toString().trim();
+          const cnpj = row['CNPJ']?.toString().trim();
           const clientName = row['Cliente']?.toString().trim();
           const productName = row['Produto']?.toString().trim();
           const subproductName = row['Subproduto']?.toString().trim();
@@ -111,12 +126,28 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
             errors.push('Data inválida (use YYYY-MM-DD)');
           }
 
-          // Validate client exists
-          const client = clients?.find(
-            (c) => c.name.toLowerCase() === clientName?.toLowerCase()
-          );
-          if (!client) {
-            errors.push('Cliente não encontrado');
+          // Find client using hierarchical matching
+          let matchedClientId: string | undefined;
+          let matchedClientName: string | undefined;
+          let matchConfidence: MatchConfidence = null;
+          let matchMethod: MatchMethod = null;
+
+          if (clients) {
+            const matchResult = findClientMatch(clients, {
+              accountNumber,
+              cpf,
+              cnpj,
+              name: clientName,
+            });
+
+            if (matchResult.client) {
+              matchedClientId = matchResult.client.id;
+              matchedClientName = matchResult.client.name;
+              matchConfidence = matchResult.confidence;
+              matchMethod = matchResult.matchedBy;
+            } else {
+              errors.push('Cliente não encontrado');
+            }
           }
 
           // Validate product exists
@@ -134,6 +165,9 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
 
           return {
             date,
+            accountNumber,
+            cpf,
+            cnpj,
             clientName,
             productName,
             subproductName,
@@ -143,6 +177,10 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
             ourShare,
             isValid: errors.length === 0,
             errors,
+            matchedClientId,
+            matchedClientName,
+            matchConfidence,
+            matchMethod,
           };
         });
 
@@ -178,9 +216,6 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
 
     try {
       const revenuesToImport = validRevenues.map((revenue) => {
-        const client = clients?.find(
-          (c) => c.name.toLowerCase() === revenue.clientName?.toLowerCase()
-        );
         const product = products?.find(
           (p) => p.name.toLowerCase() === revenue.productName?.toLowerCase()
         );
@@ -190,7 +225,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
 
         return {
           date: revenue.date,
-          client_id: client!.id,
+          client_id: revenue.matchedClientId!,
           product_id: product!.id,
           subproduct_id: subproduct?.id || null,
           gross_revenue: revenue.grossRevenue,
@@ -221,6 +256,9 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
 
   const validCount = parsedData.filter((r) => r.isValid).length;
   const invalidCount = parsedData.filter((r) => !r.isValid).length;
+  const lowConfidenceCount = parsedData.filter(
+    (r) => r.isValid && r.matchConfidence === 'low'
+  ).length;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -231,11 +269,11 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Importar Receitas</DialogTitle>
           <DialogDescription>
-            Faça upload de um arquivo Excel com os dados das receitas
+            Faça upload de um arquivo Excel. Use Número da Conta, CPF/CNPJ ou Nome do Cliente para vincular.
           </DialogDescription>
         </DialogHeader>
 
@@ -246,7 +284,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
             <div>
               <p className="text-sm font-medium">Modelo de Importação</p>
               <p className="text-xs text-muted-foreground">
-                Baixe o modelo com as colunas corretas
+                Prioridade: Número Conta → CPF/CNPJ → Nome
               </p>
             </div>
           </div>
@@ -289,16 +327,23 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
         {/* Preview */}
         {parsedData.length > 0 && (
           <>
-            <div className="flex gap-4">
-              <Alert className="flex-1">
+            <div className="flex gap-4 flex-wrap">
+              <Alert className="flex-1 min-w-[140px]">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                 <AlertDescription>
-                  <span className="font-medium text-green-600">{validCount}</span> receitas
-                  válidas
+                  <span className="font-medium text-green-600">{validCount}</span> receitas válidas
                 </AlertDescription>
               </Alert>
+              {lowConfidenceCount > 0 && (
+                <Alert className="flex-1 min-w-[140px]">
+                  <XCircle className="h-4 w-4 text-orange-500" />
+                  <AlertDescription>
+                    <span className="font-medium text-orange-600">{lowConfidenceCount}</span> por nome (verificar)
+                  </AlertDescription>
+                </Alert>
+              )}
               {invalidCount > 0 && (
-                <Alert className="flex-1" variant="destructive">
+                <Alert className="flex-1 min-w-[140px]" variant="destructive">
                   <XCircle className="h-4 w-4" />
                   <AlertDescription>
                     <span className="font-medium">{invalidCount}</span> com erros
@@ -311,7 +356,7 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-8"></TableHead>
+                    <TableHead className="w-8">Match</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Produto</TableHead>
@@ -323,20 +368,26 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
                   {parsedData.slice(0, 50).map((revenue, index) => (
                     <TableRow
                       key={index}
-                      className={!revenue.isValid ? 'bg-destructive/5' : ''}
+                      className={
+                        !revenue.isValid 
+                          ? 'bg-destructive/5' 
+                          : revenue.matchConfidence === 'low' 
+                            ? 'bg-orange-50 dark:bg-orange-950/20' 
+                            : ''
+                      }
                     >
                       <TableCell>
-                        {revenue.isValid ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-destructive" />
-                        )}
+                        <MatchConfidenceBadge
+                          confidence={revenue.matchConfidence}
+                          matchedBy={revenue.matchMethod}
+                          clientName={revenue.matchedClientName}
+                        />
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {revenue.date}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {revenue.clientName || '-'}
+                        {revenue.matchedClientName || revenue.clientName || '-'}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{revenue.productName || '-'}</Badge>

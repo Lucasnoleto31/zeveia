@@ -12,7 +12,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Table, 
   TableBody, 
@@ -22,7 +21,7 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useImportClients } from '@/hooks/useClients';
+import { useImportClients, useClients } from '@/hooks/useClients';
 import { useOrigins, useCampaigns } from '@/hooks/useConfiguration';
 import { usePartners } from '@/hooks/usePartners';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,7 +34,8 @@ import {
   CheckCircle2, 
   XCircle,
   User,
-  Building2
+  Building2,
+  AlertCircle
 } from 'lucide-react';
 
 interface ImportClientsDialogProps {
@@ -46,6 +46,7 @@ interface ImportClientsDialogProps {
 interface ParsedClient {
   type: 'pf' | 'pj';
   name: string;
+  accountNumber?: string;
   cpf?: string;
   cnpj?: string;
   email?: string;
@@ -58,11 +59,15 @@ interface ParsedClient {
   partner?: string;
   isValid: boolean;
   errors: string[];
+  warnings: string[];
+  isDuplicate: boolean;
+  isNewAccount: boolean;
 }
 
 export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogProps) {
   const { user } = useAuth();
   const importClients = useImportClients();
+  const { data: existingClients } = useClients({});
   const { data: origins } = useOrigins();
   const { data: campaigns } = useCampaigns();
   const { data: partners } = usePartners();
@@ -75,6 +80,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
   const downloadTemplate = (type: 'pf' | 'pj') => {
     const templatePF = [
       {
+        'Número Conta': '123456',
         Nome: 'João Silva',
         CPF: '123.456.789-00',
         'Data Nascimento': '1990-01-15',
@@ -93,6 +99,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
 
     const templatePJ = [
       {
+        'Número Conta': '789012',
         'Razão Social': 'Empresa LTDA',
         'Nome Fantasia': 'Empresa',
         CNPJ: '00.000.000/0001-00',
@@ -117,6 +124,11 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
     XLSX.writeFile(wb, `modelo_clientes_${type}.xlsx`);
   };
 
+  const normalizeDocument = (doc: string | null | undefined): string => {
+    if (!doc) return '';
+    return doc.replace(/\D/g, '');
+  };
+
   const parseFile = useCallback((file: File) => {
     setIsProcessing(true);
     const reader = new FileReader();
@@ -136,11 +148,13 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
 
         const parsed: ParsedClient[] = jsonData.map((row: any) => {
           const errors: string[] = [];
+          const warnings: string[] = [];
           
           // Determine type based on columns
           const isPJ = row['Razão Social'] || row['CNPJ'];
           const type = isPJ ? 'pj' : 'pf';
 
+          const accountNumber = row['Número Conta']?.toString().trim() || row['Numero Conta']?.toString().trim();
           const name = isPJ ? row['Razão Social']?.toString().trim() : row['Nome']?.toString().trim();
           const cpf = row['CPF']?.toString().trim();
           const cnpj = row['CNPJ']?.toString().trim();
@@ -152,6 +166,44 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
           const origin = row['Origem']?.toString().trim();
           const campaign = row['Campanha']?.toString().trim();
           const partner = row['Parceiro']?.toString().trim();
+
+          // Check for duplicates
+          let isDuplicate = false;
+          let isNewAccount = false;
+
+          if (existingClients) {
+            const normalizedCpf = normalizeDocument(cpf);
+            const normalizedCnpj = normalizeDocument(cnpj);
+            const normalizedAccountNumber = accountNumber?.toLowerCase().trim();
+
+            // Check if same account number exists
+            const existingByAccount = existingClients.find(
+              (c) => c.account_number?.toLowerCase().trim() === normalizedAccountNumber
+            );
+            
+            // Check if same CPF/CNPJ exists
+            const existingByDocument = existingClients.find((c) => {
+              if (type === 'pf' && normalizedCpf) {
+                return normalizeDocument(c.cpf) === normalizedCpf;
+              }
+              if (type === 'pj' && normalizedCnpj) {
+                return normalizeDocument(c.cnpj) === normalizedCnpj;
+              }
+              return false;
+            });
+
+            if (existingByAccount) {
+              isDuplicate = true;
+              errors.push('Conta já cadastrada');
+            } else if (existingByDocument && !accountNumber) {
+              isDuplicate = true;
+              errors.push('CPF/CNPJ já cadastrado sem número de conta');
+            } else if (existingByDocument && accountNumber) {
+              // Same document, different account - it's a new account for existing client
+              isNewAccount = true;
+              warnings.push(`Nova conta para cliente: ${existingByDocument.name}`);
+            }
+          }
 
           if (!name || name.length < 2) {
             errors.push(isPJ ? 'Razão social obrigatória' : 'Nome obrigatório');
@@ -172,6 +224,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
           return {
             type,
             name,
+            accountNumber,
             cpf,
             cnpj,
             email,
@@ -184,6 +237,9 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
             partner,
             isValid: errors.length === 0,
             errors,
+            warnings,
+            isDuplicate,
+            isNewAccount,
           };
         });
 
@@ -201,7 +257,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
     };
 
     reader.readAsBinaryString(file);
-  }, []);
+  }, [existingClients]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && parseFile(files[0]),
@@ -231,6 +287,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
         const base: any = {
           type: client.type,
           name: client.name,
+          account_number: client.accountNumber || null,
           email: client.email || null,
           phone: client.phone || null,
           state: client.state || null,
@@ -274,14 +331,16 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
 
   const validCount = parsedData.filter(c => c.isValid).length;
   const invalidCount = parsedData.filter(c => !c.isValid).length;
+  const newAccountCount = parsedData.filter(c => c.isNewAccount && c.isValid).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Importar Clientes</DialogTitle>
           <DialogDescription>
-            Faça upload de um arquivo Excel com os dados dos clientes
+            Faça upload de um arquivo Excel com os dados dos clientes. 
+            Clientes com mesmo CPF/CNPJ e número de conta diferente serão importados como novas contas.
           </DialogDescription>
         </DialogHeader>
 
@@ -344,15 +403,23 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
         {/* Preview */}
         {parsedData.length > 0 && (
           <>
-            <div className="flex gap-4">
-              <Alert className="flex-1">
+            <div className="flex gap-4 flex-wrap">
+              <Alert className="flex-1 min-w-[140px]">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                 <AlertDescription>
                   <span className="font-medium text-green-600">{validCount}</span> clientes válidos
                 </AlertDescription>
               </Alert>
+              {newAccountCount > 0 && (
+                <Alert className="flex-1 min-w-[140px]">
+                  <AlertCircle className="h-4 w-4 text-blue-500" />
+                  <AlertDescription>
+                    <span className="font-medium text-blue-600">{newAccountCount}</span> novas contas
+                  </AlertDescription>
+                </Alert>
+              )}
               {invalidCount > 0 && (
-                <Alert className="flex-1" variant="destructive">
+                <Alert className="flex-1 min-w-[140px]" variant="destructive">
                   <XCircle className="h-4 w-4" />
                   <AlertDescription>
                     <span className="font-medium">{invalidCount}</span> com erros
@@ -367,18 +434,31 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
                   <TableRow>
                     <TableHead className="w-8"></TableHead>
                     <TableHead>Tipo</TableHead>
+                    <TableHead>Conta</TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>CPF/CNPJ</TableHead>
-                    <TableHead>E-mail</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {parsedData.slice(0, 50).map((client, index) => (
-                    <TableRow key={index} className={!client.isValid ? 'bg-destructive/5' : ''}>
+                    <TableRow 
+                      key={index} 
+                      className={
+                        !client.isValid 
+                          ? 'bg-destructive/5' 
+                          : client.isNewAccount 
+                            ? 'bg-blue-50 dark:bg-blue-950/20' 
+                            : ''
+                      }
+                    >
                       <TableCell>
                         {client.isValid ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          client.isNewAccount ? (
+                            <AlertCircle className="h-4 w-4 text-blue-500" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          )
                         ) : (
                           <XCircle className="h-4 w-4 text-destructive" />
                         )}
@@ -388,17 +468,23 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
                           {client.type.toUpperCase()}
                         </Badge>
                       </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {client.accountNumber || '-'}
+                      </TableCell>
                       <TableCell className="font-medium">{client.name || '-'}</TableCell>
                       <TableCell className="font-mono text-xs">
                         {client.type === 'pf' ? client.cpf : client.cnpj}
                       </TableCell>
-                      <TableCell>{client.email || '-'}</TableCell>
                       <TableCell>
-                        {!client.isValid && (
+                        {!client.isValid ? (
                           <Badge variant="destructive" className="text-[10px]">
                             {client.errors.join(', ')}
                           </Badge>
-                        )}
+                        ) : client.warnings.length > 0 ? (
+                          <Badge variant="secondary" className="text-[10px]">
+                            {client.warnings.join(', ')}
+                          </Badge>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -1,0 +1,129 @@
+import { Client } from '@/types/database';
+
+export type MatchConfidence = 'high' | 'medium' | 'low' | null;
+export type MatchMethod = 'account_number' | 'cpf' | 'cnpj' | 'name' | null;
+
+export interface ClientMatchResult {
+  client: Client | null;
+  matchedBy: MatchMethod;
+  confidence: MatchConfidence;
+}
+
+export interface MatchInput {
+  accountNumber?: string;
+  cpf?: string;
+  cnpj?: string;
+  name?: string;
+}
+
+/**
+ * Normaliza string removendo caracteres especiais (pontos, traços, barras)
+ */
+function normalizeDocument(doc: string | null | undefined): string {
+  if (!doc) return '';
+  return doc.replace(/\D/g, '');
+}
+
+/**
+ * Normaliza string para comparação (lowercase, trim)
+ */
+function normalizeString(str: string | null | undefined): string {
+  if (!str) return '';
+  return str.toLowerCase().trim();
+}
+
+/**
+ * Encontra cliente por hierarquia de identificadores:
+ * 1. Número da Conta (alta confiança)
+ * 2. CPF (alta confiança)
+ * 3. CNPJ (alta confiança)
+ * 4. Nome (baixa confiança - fallback)
+ */
+export function findClientMatch(
+  clients: Client[],
+  data: MatchInput
+): ClientMatchResult {
+  // 1. Tentar por número da conta (alta confiança)
+  if (data.accountNumber) {
+    const normalizedAccount = normalizeString(data.accountNumber);
+    const match = clients.find(
+      (c) => normalizeString(c.account_number) === normalizedAccount
+    );
+    if (match) {
+      return { client: match, matchedBy: 'account_number', confidence: 'high' };
+    }
+  }
+
+  // 2. Tentar por CPF (alta confiança)
+  if (data.cpf) {
+    const normalizedCpf = normalizeDocument(data.cpf);
+    if (normalizedCpf.length >= 11) {
+      const match = clients.find(
+        (c) => normalizeDocument(c.cpf) === normalizedCpf
+      );
+      if (match) {
+        return { client: match, matchedBy: 'cpf', confidence: 'high' };
+      }
+    }
+  }
+
+  // 3. Tentar por CNPJ (alta confiança)
+  if (data.cnpj) {
+    const normalizedCnpj = normalizeDocument(data.cnpj);
+    if (normalizedCnpj.length >= 14) {
+      const match = clients.find(
+        (c) => normalizeDocument(c.cnpj) === normalizedCnpj
+      );
+      if (match) {
+        return { client: match, matchedBy: 'cnpj', confidence: 'high' };
+      }
+    }
+  }
+
+  // 4. Tentar por nome (baixa confiança - fallback)
+  if (data.name) {
+    const normalizedName = normalizeString(data.name);
+    const match = clients.find(
+      (c) => normalizeString(c.name) === normalizedName
+    );
+    if (match) {
+      return { client: match, matchedBy: 'name', confidence: 'low' };
+    }
+  }
+
+  return { client: null, matchedBy: null, confidence: null };
+}
+
+/**
+ * Retorna ícone de confiança para exibição
+ */
+export function getConfidenceIcon(confidence: MatchConfidence): string {
+  switch (confidence) {
+    case 'high':
+      return '✓';
+    case 'medium':
+      return '~';
+    case 'low':
+      return '?';
+    default:
+      return '✗';
+  }
+}
+
+/**
+ * Retorna descrição do método de vinculação
+ */
+export function getMatchMethodLabel(method: MatchMethod): string {
+  switch (method) {
+    case 'account_number':
+      return 'Número da Conta';
+    case 'cpf':
+      return 'CPF';
+    case 'cnpj':
+      return 'CNPJ';
+    case 'name':
+      return 'Nome';
+    default:
+      return 'Não encontrado';
+  }
+}
