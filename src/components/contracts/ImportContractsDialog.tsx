@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { useImportContracts } from '@/hooks/useContracts';
 import { useClients, useCreateClient } from '@/hooks/useClients';
 import { useAssets, usePlatforms } from '@/hooks/useConfiguration';
+import { usePartners } from '@/hooks/usePartners';
 import { findClientMatchWithMappings, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
 import { useAccountMappings } from '@/hooks/useAccountMappings';
 import { parseExcelDate } from '@/utils/excelDateParser';
@@ -50,6 +51,7 @@ interface ClientToCreate {
   accountNumber?: string;
   cpf?: string;
   cnpj?: string;
+  partnerId?: string;
 }
 
 interface ParsedContract {
@@ -58,6 +60,7 @@ interface ParsedContract {
   cpf?: string;
   cnpj?: string;
   clientName?: string;
+  partnerName?: string;
   assetCode: string;
   platformName: string;
   lotsTraded: number;
@@ -70,6 +73,8 @@ interface ParsedContract {
   matchMethod: MatchMethod;
   needsClientCreation?: boolean;
   clientToCreate?: ClientToCreate;
+  matchedPartnerId?: string;
+  matchedPartnerName?: string;
 }
 
 export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDialogProps) {
@@ -79,6 +84,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
   const { data: clients } = useClients({});
   const { data: assets } = useAssets();
   const { data: platforms } = usePlatforms();
+  const { data: partners } = usePartners({ active: true });
   const { data: accountMappings } = useAccountMappings();
 
   const [parsedData, setParsedData] = useState<ParsedContract[]>([]);
@@ -93,6 +99,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
         CPF: '',
         CNPJ: '',
         Cliente: '',
+        Parceiro: 'Nome do Parceiro',
         Ativo: 'WIN',
         Plataforma: 'Nome da Plataforma',
         'Lotes Operados': 100,
@@ -127,6 +134,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
           const cpf = row['CPF']?.toString().trim();
           const cnpj = row['CNPJ']?.toString().trim();
           const clientName = row['Cliente']?.toString().trim();
+          const partnerName = row['Parceiro']?.toString().trim();
           const assetCode = row['Ativo']?.toString().trim().toUpperCase();
           const platformName = row['Plataforma']?.toString().trim();
           const lotsTraded = parseInt(row['Lotes Operados']) || 0;
@@ -135,6 +143,20 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
           // Validate date
           if (!date) {
             errors.push('Data inválida');
+          }
+
+          // Find partner by name (case-insensitive)
+          let matchedPartnerId: string | undefined;
+          let matchedPartnerName: string | undefined;
+          if (partnerName && partners) {
+            const matchedPartner = partners.find(
+              (p) => p.name.toLowerCase() === partnerName.toLowerCase()
+            );
+            if (matchedPartner) {
+              matchedPartnerId = matchedPartner.id;
+              matchedPartnerName = matchedPartner.name;
+            }
+            // Não adiciona erro se parceiro não encontrado - apenas não vincula
           }
 
           // Find client using hierarchical matching
@@ -167,6 +189,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
                 accountNumber,
                 cpf,
                 cnpj,
+                partnerId: matchedPartnerId,
               };
               matchedClientName = generatedName;
               // NÃO adiciona erro - registro continua válido para criação
@@ -199,6 +222,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             cpf,
             cnpj,
             clientName,
+            partnerName,
             assetCode,
             platformName,
             lotsTraded,
@@ -211,6 +235,8 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             matchMethod,
             needsClientCreation,
             clientToCreate,
+            matchedPartnerId,
+            matchedPartnerName,
           };
         });
 
@@ -223,7 +249,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
     };
 
     reader.readAsBinaryString(file);
-  }, [clients, assets, platforms, accountMappings]);
+  }, [clients, assets, platforms, partners, accountMappings]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && parseFile(files[0]),
@@ -269,6 +295,7 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             active: false, // Criar como inativo
             assessor_id: user?.id || null,
             type: clientData.cnpj ? 'pj' : 'pf',
+            partner_id: clientData.partnerId || null,
           });
           clientIdMap.set(key, newClient.id);
           clientsCreated++;
