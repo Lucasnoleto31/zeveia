@@ -147,6 +147,7 @@ export function useGenerateAlerts() {
       if (!user) throw new Error('Usuário não autenticado');
 
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const alerts: Omit<Alert, 'id' | 'created_at' | 'client' | 'lead'>[] = [];
 
       // 1. Birthday alerts (next 7 days)
@@ -160,15 +161,19 @@ export function useGenerateAlerts() {
         for (const client of clients) {
           if (!client.birth_date) continue;
           
-          const birthDate = new Date(client.birth_date);
-          const thisYearBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+          // Parse birth date correctly (YYYY-MM-DD format)
+          const [year, month, day] = client.birth_date.split('-').map(Number);
+          
+          // Create this year's birthday
+          let thisYearBirthday = new Date(today.getFullYear(), month - 1, day);
+          thisYearBirthday.setHours(0, 0, 0, 0);
           
           // If birthday already passed this year, check next year
           if (thisYearBirthday < today) {
-            thisYearBirthday.setFullYear(today.getFullYear() + 1);
+            thisYearBirthday = new Date(today.getFullYear() + 1, month - 1, day);
           }
           
-          const daysUntil = Math.floor((thisYearBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const daysUntil = Math.round((thisYearBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
           
           if (daysUntil >= 0 && daysUntil <= 7) {
             alerts.push({
