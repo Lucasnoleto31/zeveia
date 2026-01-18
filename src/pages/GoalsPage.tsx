@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { useGoals, useGoalProgress, useDeleteGoal, GOAL_TYPES } from '@/hooks/useGoals';
 import { useProfiles } from '@/hooks/useProfiles';
 import { useAuth } from '@/contexts/AuthContext';
@@ -150,7 +151,8 @@ export default function GoalsPage() {
     : 0;
 
   return (
-    <div className="space-y-6">
+    <MainLayout title="Metas">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -369,6 +371,7 @@ export default function GoalsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 }

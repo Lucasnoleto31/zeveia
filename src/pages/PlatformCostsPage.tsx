@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { usePlatformCosts, useDeletePlatformCost, usePlatformCostStats } from '@/hooks/usePlatformCosts';
 import { useClients } from '@/hooks/useClients';
 import { usePlatforms } from '@/hooks/useConfiguration';
@@ -129,7 +130,8 @@ export default function PlatformCostsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <MainLayout title="Custos de Plataforma">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -436,6 +438,7 @@ export default function PlatformCostsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { usePartners, useDeletePartner } from '@/hooks/usePartners';
 import { usePartnerROI } from '@/hooks/usePartnerROI';
 import { Partner } from '@/types/database';
@@ -118,7 +119,8 @@ export default function PartnersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <MainLayout title="Parceiros">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -402,6 +404,7 @@ export default function PartnersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 }
