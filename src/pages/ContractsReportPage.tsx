@@ -9,12 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useContractsReport } from '@/hooks/useContractsReport';
 import { useAuth } from '@/contexts/AuthContext';
-import { FileBarChart, Download, Loader2, TrendingUp, TrendingDown, Users, FileText, BarChart3, Percent } from 'lucide-react';
+import { FileBarChart, Download, Loader2, TrendingUp, TrendingDown, Users, FileText, BarChart3, Percent, Clock, PieChart as PieChartIcon } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import {
   BarChart,
   Bar,
   LineChart,
   Line,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -237,6 +241,92 @@ export default function ContractsReportPage() {
             <CardContent>
               <div className="text-2xl font-bold">{formatNumber(data.avgLotsPerClient)}</div>
               <p className="text-xs text-muted-foreground">lotes/cliente</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Concentração Top 10</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatPercent(data.top10Concentration)}</div>
+              <p className="text-xs text-muted-foreground">do volume total</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Volume Distribution and Inactive Clients */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Volume Distribution */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PieChartIcon className="h-5 w-5" />
+                Distribuição por Faixa de Volume
+              </CardTitle>
+              <CardDescription>Quantidade de clientes por faixa de lotes girados</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {data.volumeDistribution.map((item) => (
+                  <div key={item.range} className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{item.range} lotes</span>
+                      <span className="text-muted-foreground">
+                        {item.count} clientes ({formatPercent(item.percentage)})
+                      </span>
+                    </div>
+                    <Progress value={item.percentage} className="h-2" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Inactive Clients */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-destructive" />
+                Clientes Inativos em Day Trade
+              </CardTitle>
+              <CardDescription>Clientes sem operações há mais de 30 dias</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {data.inactiveClients.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">Nenhum cliente inativo encontrado</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead className="text-right">Dias</TableHead>
+                      <TableHead className="text-right">Última Op.</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.inactiveClients.slice(0, 8).map((client) => (
+                      <TableRow 
+                        key={client.id} 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/clients/${client.id}`)}
+                      >
+                        <TableCell className="font-medium truncate max-w-[120px]">
+                          {client.name}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={client.daysSinceLastOp > 60 ? 'destructive' : 'secondary'}>
+                            {client.daysSinceLastOp}d
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground text-xs">
+                          {new Date(client.lastOpDate).toLocaleDateString('pt-BR')}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>

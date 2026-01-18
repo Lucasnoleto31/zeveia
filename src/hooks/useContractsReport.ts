@@ -21,6 +21,20 @@ interface AggregatedData {
   zeroRate: number;
 }
 
+interface VolumeDistribution {
+  range: string;
+  count: number;
+  percentage: number;
+}
+
+interface InactiveClient {
+  id: string;
+  name: string;
+  daysSinceLastOp: number;
+  lastOpDate: string;
+  totalTraded: number;
+}
+
 export interface ContractsReportData {
   // Summary
   totalTraded: number;
@@ -30,6 +44,11 @@ export interface ContractsReportData {
   avgLotsPerClient: number;
   activeClientsCount: number;
   momGrowth: number;
+
+  // New metrics
+  top10Concentration: number; // % of total volume from top 10 clients
+  volumeDistribution: VolumeDistribution[];
+  inactiveClients: InactiveClient[];
 
   // Monthly Evolution
   monthlyEvolution: MonthlyData[];
@@ -228,6 +247,64 @@ export function useContractsReport(months: number = 12) {
         .sort((a, b) => b.value - a.value)
         .slice(0, 10);
 
+      // Top 10 Concentration - % of total volume from top 10 clients
+      const top10Volume = topByTraded.reduce((sum, c) => sum + c.value, 0);
+      const top10Concentration = totalTraded > 0 ? (top10Volume / totalTraded) * 100 : 0;
+
+      // Volume Distribution by ranges
+      const ranges = [
+        { range: '1-100', min: 1, max: 100 },
+        { range: '101-500', min: 101, max: 500 },
+        { range: '501-1000', min: 501, max: 1000 },
+        { range: '1001-5000', min: 1001, max: 5000 },
+        { range: '5000+', min: 5001, max: Infinity },
+      ];
+      
+      const volumeDistribution = ranges.map(r => {
+        const count = clientsList.filter(c => c.traded >= r.min && c.traded <= r.max).length;
+        return {
+          range: r.range,
+          count,
+          percentage: clientsList.length > 0 ? (count / clientsList.length) * 100 : 0,
+        };
+      });
+
+      // Inactive clients - days since last operation
+      const clientLastOpMap: Record<string, { id: string; name: string; lastDate: string; totalTraded: number }> = {};
+      contracts?.forEach(c => {
+        if (c.client) {
+          const existing = clientLastOpMap[c.client.id];
+          if (!existing || c.date > existing.lastDate) {
+            clientLastOpMap[c.client.id] = {
+              id: c.client.id,
+              name: c.client.name,
+              lastDate: c.date,
+              totalTraded: (existing?.totalTraded || 0) + (c.lots_traded || 0),
+            };
+          } else {
+            clientLastOpMap[c.client.id].totalTraded += c.lots_traded || 0;
+          }
+        }
+      });
+
+      const today = new Date();
+      const inactiveClients = Object.values(clientLastOpMap)
+        .map(c => {
+          const lastOpDate = new Date(c.lastDate);
+          const diffTime = Math.abs(today.getTime() - lastOpDate.getTime());
+          const daysSinceLastOp = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return {
+            id: c.id,
+            name: c.name,
+            daysSinceLastOp,
+            lastOpDate: c.lastDate,
+            totalTraded: c.totalTraded,
+          };
+        })
+        .filter(c => c.daysSinceLastOp >= 30) // Consider inactive if 30+ days
+        .sort((a, b) => b.daysSinceLastOp - a.daysSinceLastOp)
+        .slice(0, 10);
+
       return {
         totalTraded,
         totalZeroed,
@@ -236,6 +313,9 @@ export function useContractsReport(months: number = 12) {
         avgLotsPerClient,
         activeClientsCount,
         momGrowth,
+        top10Concentration,
+        volumeDistribution,
+        inactiveClients,
         monthlyEvolution,
         byPartner,
         byPlatform,
