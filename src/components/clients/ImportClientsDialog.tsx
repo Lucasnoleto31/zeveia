@@ -38,6 +38,23 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+// Parse Brazilian number format (1.500.000,00 or R$ 1.500.000,00)
+const parseBrazilianNumber = (value: string | undefined): number | null => {
+  if (!value) return null;
+  
+  let cleaned = value.toString()
+    .replace(/R\$\s*/gi, '')
+    .replace(/\s/g, '')
+    .trim();
+  
+  if (cleaned.includes(',')) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  }
+  
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+};
+
 interface ImportClientsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -304,7 +321,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
           email: client.email || null,
           phone: client.phone || null,
           state: client.state || null,
-          patrimony: client.patrimony ? parseFloat(client.patrimony) : null,
+          patrimony: parseBrazilianNumber(client.patrimony),
           profile: client.profile || null,
           origin_id: originId || null,
           campaign_id: campaignId || null,
