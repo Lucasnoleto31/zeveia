@@ -20,7 +20,7 @@ import AlertsPage from "./pages/AlertsPage";
 import FunnelReportPage from "./pages/FunnelReportPage";
 import PerformanceReportPage from "./pages/PerformanceReportPage";
 import PartnerROIReportPage from "./pages/PartnerROIReportPage";
-import ComingSoon from "./pages/ComingSoon";
+import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,7 +55,7 @@ const App = () => (
               <Route path="/reports/funnel" element={<ProtectedRoute><FunnelReportPage /></ProtectedRoute>} />
               <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReportPage /></ProtectedRoute>} />
               <Route path="/reports/roi" element={<ProtectedRoute><PartnerROIReportPage /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute requireSocio><ComingSoon /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute requireSocio><SettingsPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

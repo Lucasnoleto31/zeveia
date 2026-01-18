@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Origin, Campaign, LossReason, Product, Subproduct, Platform, Asset } from '@/types/database';
 
+// Generic update/toggle functions
+type ConfigTable = 'origins' | 'campaigns' | 'loss_reasons' | 'products' | 'subproducts' | 'platforms' | 'assets';
+
 // Origins
 export function useOrigins() {
   return useQuery({
@@ -28,6 +31,34 @@ export function useCreateOrigin() {
         .single();
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['origins'] }),
+  });
+}
+
+export function useUpdateOrigin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name, active }: { id: string; name?: string; active?: boolean }) => {
+      const { data, error } = await supabase
+        .from('origins')
+        .update({ name, active })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['origins'] }),
+  });
+}
+
+export function useDeleteOrigin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('origins').delete().eq('id', id);
+      if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['origins'] }),
   });
@@ -64,6 +95,34 @@ export function useCreateCampaign() {
   });
 }
 
+export function useUpdateCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name, active }: { id: string; name?: string; active?: boolean }) => {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .update({ name, active })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+  });
+}
+
+export function useDeleteCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('campaigns').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+  });
+}
+
 // Loss Reasons
 export function useLossReasons() {
   return useQuery({
@@ -95,6 +154,34 @@ export function useCreateLossReason() {
   });
 }
 
+export function useUpdateLossReason() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name, active }: { id: string; name?: string; active?: boolean }) => {
+      const { data, error } = await supabase
+        .from('loss_reasons')
+        .update({ name, active })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lossReasons'] }),
+  });
+}
+
+export function useDeleteLossReason() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('loss_reasons').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lossReasons'] }),
+  });
+}
+
 // Products
 export function useProducts() {
   return useQuery({
@@ -121,6 +208,34 @@ export function useCreateProduct() {
         .single();
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+export function useUpdateProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name, active }: { id: string; name?: string; active?: boolean }) => {
+      const { data, error } = await supabase
+        .from('products')
+        .update({ name, active })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+export function useDeleteProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
   });
@@ -158,6 +273,39 @@ export function useCreateSubproduct() {
   });
 }
 
+export function useUpdateSubproduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name, active, productId }: { id: string; name?: string; active?: boolean; productId?: string }) => {
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (active !== undefined) updateData.active = active;
+      if (productId !== undefined) updateData.product_id = productId;
+      
+      const { data, error } = await supabase
+        .from('subproducts')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subproducts'] }),
+  });
+}
+
+export function useDeleteSubproduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('subproducts').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subproducts'] }),
+  });
+}
+
 // Platforms
 export function usePlatforms() {
   return useQuery({
@@ -189,6 +337,34 @@ export function useCreatePlatform() {
   });
 }
 
+export function useUpdatePlatform() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name, active }: { id: string; name?: string; active?: boolean }) => {
+      const { data, error } = await supabase
+        .from('platforms')
+        .update({ name, active })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platforms'] }),
+  });
+}
+
+export function useDeletePlatform() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('platforms').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platforms'] }),
+  });
+}
+
 // Assets
 export function useAssets() {
   return useQuery({
@@ -215,6 +391,39 @@ export function useCreateAsset() {
         .single();
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assets'] }),
+  });
+}
+
+export function useUpdateAsset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, code, name, active }: { id: string; code?: string; name?: string; active?: boolean }) => {
+      const updateData: any = {};
+      if (code !== undefined) updateData.code = code;
+      if (name !== undefined) updateData.name = name;
+      if (active !== undefined) updateData.active = active;
+      
+      const { data, error } = await supabase
+        .from('assets')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assets'] }),
+  });
+}
+
+export function useDeleteAsset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('assets').delete().eq('id', id);
+      if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assets'] }),
   });
