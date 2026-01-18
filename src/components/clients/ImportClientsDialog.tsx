@@ -57,6 +57,8 @@ interface ParsedClient {
   origin?: string;
   campaign?: string;
   partner?: string;
+  matchedPartnerId?: string;
+  matchedPartnerName?: string;
   isValid: boolean;
   errors: string[];
   warnings: string[];
@@ -221,6 +223,15 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
             errors.push('Perfil inválido');
           }
 
+          // Match partner
+          const matchedPartner = partners?.find(
+            p => p.name.toLowerCase().trim() === partner?.toLowerCase().trim()
+          );
+
+          if (partner && !matchedPartner) {
+            warnings.push(`Parceiro "${partner}" não encontrado`);
+          }
+
           return {
             type,
             name,
@@ -235,6 +246,8 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
             origin,
             campaign,
             partner,
+            matchedPartnerId: matchedPartner?.id,
+            matchedPartnerName: matchedPartner?.name,
             isValid: errors.length === 0,
             errors,
             warnings,
@@ -257,7 +270,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
     };
 
     reader.readAsBinaryString(file);
-  }, [existingClients]);
+  }, [existingClients, partners]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && parseFile(files[0]),
@@ -332,6 +345,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
   const validCount = parsedData.filter(c => c.isValid).length;
   const invalidCount = parsedData.filter(c => !c.isValid).length;
   const newAccountCount = parsedData.filter(c => c.isNewAccount && c.isValid).length;
+  const matchedPartnerCount = parsedData.filter(c => c.isValid && c.matchedPartnerId).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -418,6 +432,14 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
                   </AlertDescription>
                 </Alert>
               )}
+              {matchedPartnerCount > 0 && (
+                <Alert className="flex-1 min-w-[140px]">
+                  <User className="h-4 w-4 text-purple-500" />
+                  <AlertDescription>
+                    <span className="font-medium text-purple-600">{matchedPartnerCount}</span> com parceiro
+                  </AlertDescription>
+                </Alert>
+              )}
               {invalidCount > 0 && (
                 <Alert className="flex-1 min-w-[140px]" variant="destructive">
                   <XCircle className="h-4 w-4" />
@@ -437,6 +459,7 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
                     <TableHead>Conta</TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>CPF/CNPJ</TableHead>
+                    <TableHead>Parceiro</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -474,6 +497,21 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
                       <TableCell className="font-medium">{client.name || '-'}</TableCell>
                       <TableCell className="font-mono text-xs">
                         {client.type === 'pf' ? client.cpf : client.cnpj}
+                      </TableCell>
+                      <TableCell>
+                        {client.partner ? (
+                          client.matchedPartnerName ? (
+                            <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                              ✓ {client.matchedPartnerName}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs text-amber-600">
+                              ⚠ {client.partner}
+                            </Badge>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {!client.isValid ? (
