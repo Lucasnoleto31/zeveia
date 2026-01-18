@@ -47,6 +47,8 @@ export function MergeClientsDialog({ open, onOpenChange, clients }: MergeClients
   const [targetClientId, setTargetClientId] = useState<string | null>(null);
   const [deleteSourceClients, setDeleteSourceClients] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showMergeAllConfirmDialog, setShowMergeAllConfirmDialog] = useState(false);
+  const [mergeAllProgress, setMergeAllProgress] = useState<{ current: number; total: number } | null>(null);
   
   const duplicateGroups = useFindDuplicates(clients);
   const mergeClients = useMergeClients();
@@ -78,6 +80,44 @@ export function MergeClientsDialog({ open, onOpenChange, clients }: MergeClients
     setShowConfirmDialog(false);
     setSelectedGroup(null);
     setTargetClientId(null);
+    onOpenChange(false);
+  };
+
+  const handleMergeAll = () => {
+    if (duplicateGroups.length === 0) return;
+    setShowMergeAllConfirmDialog(true);
+  };
+
+  const confirmMergeAll = async () => {
+    setShowMergeAllConfirmDialog(false);
+    setMergeAllProgress({ current: 0, total: duplicateGroups.length });
+
+    for (let i = 0; i < duplicateGroups.length; i++) {
+      const group = duplicateGroups[i];
+      
+      // Select the oldest client (by created_at) as target
+      const sortedClients = [...group.clients].sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      
+      const target = sortedClients[0];
+      const sources = sortedClients.slice(1).map(c => c.id);
+
+      try {
+        await mergeClients.mutateAsync({
+          targetClientId: target.id,
+          sourceClientIds: sources,
+          deleteSourceClients,
+        });
+      } catch (error) {
+        // Continue with next group even if one fails
+        console.error(`Erro ao mesclar grupo ${group.key}:`, error);
+      }
+
+      setMergeAllProgress({ current: i + 1, total: duplicateGroups.length });
+    }
+
+    setMergeAllProgress(null);
     onOpenChange(false);
   };
 
@@ -122,13 +162,39 @@ export function MergeClientsDialog({ open, onOpenChange, clients }: MergeClients
                   Todos os clientes possuem CPF/CNPJ únicos.
                 </p>
               </div>
+            ) : mergeAllProgress ? (
+              // Progress view during merge all
+              <div className="text-center py-12">
+                <Loader2 className="h-12 w-12 mx-auto text-primary animate-spin mb-4" />
+                <p className="text-lg font-medium">Mesclando clientes...</p>
+                <p className="text-muted-foreground text-sm mt-1">
+                  Processando grupo {mergeAllProgress.current} de {mergeAllProgress.total}
+                </p>
+                <div className="w-full bg-muted rounded-full h-2 mt-4 max-w-xs mx-auto">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${(mergeAllProgress.current / mergeAllProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
             ) : !selectedGroup ? (
               // Step 1: Select duplicate group
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Foram encontrados <strong>{duplicateGroups.length}</strong> grupos de clientes duplicados.
-                  Selecione um grupo para iniciar o merge:
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Foram encontrados <strong>{duplicateGroups.length}</strong> grupos de clientes duplicados.
+                    Selecione um grupo para iniciar o merge:
+                  </p>
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    onClick={handleMergeAll}
+                    className="flex items-center gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    Mesclar Todos
+                  </Button>
+                </div>
                 {duplicateGroups.map((group) => (
                   <div
                     key={group.key}
@@ -325,6 +391,35 @@ export function MergeClientsDialog({ open, onOpenChange, clients }: MergeClients
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmMerge}>
               Confirmar Merge
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showMergeAllConfirmDialog} onOpenChange={setShowMergeAllConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mesclar Todos os Duplicados</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Você está prestes a mesclar <strong>{duplicateGroups.length} grupos</strong> de clientes duplicados automaticamente.
+              </p>
+              <p className="text-muted-foreground">
+                O cliente mais antigo de cada grupo será mantido como destino e receberá todos os dados dos demais.
+              </p>
+              <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg mt-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  Os clientes duplicados serão {deleteSourceClients ? 'excluídos permanentemente' : 'desativados'}.
+                  Esta ação não pode ser desfeita.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMergeAll}>
+              Mesclar Todos
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
