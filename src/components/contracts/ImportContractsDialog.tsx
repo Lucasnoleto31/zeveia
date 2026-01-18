@@ -22,12 +22,13 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useImportContracts } from '@/hooks/useContracts';
-import { useClients } from '@/hooks/useClients';
+import { useClients, useCreateClient } from '@/hooks/useClients';
 import { useAssets, usePlatforms } from '@/hooks/useConfiguration';
 import { findClientMatchWithMappings, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
 import { useAccountMappings } from '@/hooks/useAccountMappings';
 import { parseExcelDate } from '@/utils/excelDateParser';
 import { MatchConfidenceBadge } from '@/components/imports/MatchConfidenceBadge';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import {
   Upload,
@@ -36,11 +37,19 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  UserPlus,
 } from 'lucide-react';
 
 interface ImportContractsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface ClientToCreate {
+  name: string;
+  accountNumber?: string;
+  cpf?: string;
+  cnpj?: string;
 }
 
 interface ParsedContract {
@@ -59,10 +68,14 @@ interface ParsedContract {
   matchedClientName?: string;
   matchConfidence: MatchConfidence;
   matchMethod: MatchMethod;
+  needsClientCreation?: boolean;
+  clientToCreate?: ClientToCreate;
 }
 
 export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDialogProps) {
   const importContracts = useImportContracts();
+  const createClient = useCreateClient();
+  const { user } = useAuth();
   const { data: clients } = useClients({});
   const { data: assets } = useAssets();
   const { data: platforms } = usePlatforms();
@@ -129,6 +142,8 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
           let matchedClientName: string | undefined;
           let matchConfidence: MatchConfidence = null;
           let matchMethod: MatchMethod = null;
+          let needsClientCreation = false;
+          let clientToCreate: ClientToCreate | undefined;
 
           if (clients) {
             const matchResult = findClientMatchWithMappings(clients, accountMappings || [], {
@@ -144,7 +159,17 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
               matchConfidence = matchResult.confidence;
               matchMethod = matchResult.matchedBy;
             } else {
-              errors.push('Cliente não encontrado');
+              // Cliente não encontrado - preparar para criação como inativo
+              needsClientCreation = true;
+              const generatedName = clientName || `Cliente ${accountNumber || cpf || cnpj || 'Importado'}`;
+              clientToCreate = {
+                name: generatedName,
+                accountNumber,
+                cpf,
+                cnpj,
+              };
+              matchedClientName = generatedName;
+              // NÃO adiciona erro - registro continua válido para criação
             }
           }
 
@@ -185,6 +210,8 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             matchedClientName,
             matchConfidence,
             matchMethod,
+            needsClientCreation,
+            clientToCreate,
           };
         });
 
@@ -219,6 +246,38 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
     setProgress(0);
 
     try {
+      // Fase 1: Criar clientes que não existem (inativos)
+      const contractsNeedingClients = validContracts.filter((c) => c.needsClientCreation && c.clientToCreate);
+      const clientIdMap = new Map<string, string>();
+
+      if (contractsNeedingClients.length > 0) {
+        // Agrupar por identificador único (cpf, cnpj ou accountNumber)
+        const uniqueClients = new Map<string, ClientToCreate>();
+        for (const contract of contractsNeedingClients) {
+          const key = contract.clientToCreate!.cpf || contract.clientToCreate!.cnpj || contract.clientToCreate!.accountNumber || contract.clientToCreate!.name;
+          if (!uniqueClients.has(key)) {
+            uniqueClients.set(key, contract.clientToCreate!);
+          }
+        }
+
+        let clientsCreated = 0;
+        for (const [key, clientData] of uniqueClients) {
+          const newClient = await createClient.mutateAsync({
+            name: clientData.name,
+            account_number: clientData.accountNumber || null,
+            cpf: clientData.cpf || null,
+            cnpj: clientData.cnpj || null,
+            active: false, // Criar como inativo
+            assessor_id: user?.id || null,
+            type: clientData.cnpj ? 'pj' : 'pf',
+          });
+          clientIdMap.set(key, newClient.id);
+          clientsCreated++;
+          setProgress(Math.round((clientsCreated / uniqueClients.size) * 30)); // 30% para criação de clientes
+        }
+      }
+
+      // Fase 2: Preparar e importar contratos
       const contractsToImport = validContracts.map((contract) => {
         const asset = assets?.find(
           (a) => a.code.toLowerCase() === contract.assetCode?.toLowerCase()
@@ -227,9 +286,15 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
           (p) => p.name.toLowerCase() === contract.platformName?.toLowerCase()
         );
 
+        let clientId = contract.matchedClientId;
+        if (contract.needsClientCreation && contract.clientToCreate) {
+          const key = contract.clientToCreate.cpf || contract.clientToCreate.cnpj || contract.clientToCreate.accountNumber || contract.clientToCreate.name;
+          clientId = clientIdMap.get(key);
+        }
+
         return {
           date: contract.date,
-          client_id: contract.matchedClientId!,
+          client_id: clientId!,
           asset_id: asset!.id,
           platform_id: platform!.id,
           lots_traded: contract.lotsTraded,
@@ -242,10 +307,14 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
       for (let i = 0; i < contractsToImport.length; i += batchSize) {
         const batch = contractsToImport.slice(i, i + batchSize);
         await importContracts.mutateAsync(batch);
-        setProgress(Math.round(((i + batch.length) / contractsToImport.length) * 100));
+        setProgress(30 + Math.round(((i + batch.length) / contractsToImport.length) * 70)); // 70% para importação
       }
 
-      toast.success(`${validContracts.length} contratos importados com sucesso!`);
+      const newClientsCount = clientIdMap.size;
+      const message = newClientsCount > 0
+        ? `${validContracts.length} contratos importados! ${newClientsCount} clientes inativos criados.`
+        : `${validContracts.length} contratos importados com sucesso!`;
+      toast.success(message);
       onOpenChange(false);
       setParsedData([]);
     } catch (error: any) {
@@ -259,7 +328,10 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
   const validCount = parsedData.filter((c) => c.isValid).length;
   const invalidCount = parsedData.filter((c) => !c.isValid).length;
   const lowConfidenceCount = parsedData.filter(
-    (c) => c.isValid && c.matchConfidence === 'low'
+    (c) => c.isValid && c.matchConfidence === 'low' && !c.needsClientCreation
+  ).length;
+  const newClientsCount = parsedData.filter(
+    (c) => c.isValid && c.needsClientCreation
   ).length;
 
   return (
@@ -329,6 +401,14 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
                   <span className="font-medium text-green-600">{validCount}</span> contratos válidos
                 </AlertDescription>
               </Alert>
+              {newClientsCount > 0 && (
+                <Alert className="flex-1 min-w-[140px]">
+                  <UserPlus className="h-4 w-4 text-blue-500" />
+                  <AlertDescription>
+                    <span className="font-medium text-blue-600">{newClientsCount}</span> novos clientes (inativos)
+                  </AlertDescription>
+                </Alert>
+              )}
               {lowConfidenceCount > 0 && (
                 <Alert className="flex-1 min-w-[140px]">
                   <XCircle className="h-4 w-4 text-orange-500" />
@@ -368,17 +448,26 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
                       className={
                         !contract.isValid 
                           ? 'bg-destructive/5' 
-                          : contract.matchConfidence === 'low' 
-                            ? 'bg-orange-50 dark:bg-orange-950/20' 
-                            : ''
+                          : contract.needsClientCreation
+                            ? 'bg-blue-50 dark:bg-blue-950/20'
+                            : contract.matchConfidence === 'low' 
+                              ? 'bg-orange-50 dark:bg-orange-950/20' 
+                              : ''
                       }
                     >
                       <TableCell>
-                        <MatchConfidenceBadge
-                          confidence={contract.matchConfidence}
-                          matchedBy={contract.matchMethod}
-                          clientName={contract.matchedClientName}
-                        />
+                        {contract.needsClientCreation ? (
+                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800">
+                            <UserPlus className="h-3 w-3 mr-1" />
+                            Novo
+                          </Badge>
+                        ) : (
+                          <MatchConfidenceBadge
+                            confidence={contract.matchConfidence}
+                            matchedBy={contract.matchMethod}
+                            clientName={contract.matchedClientName}
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {contract.date}
