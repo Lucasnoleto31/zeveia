@@ -58,13 +58,32 @@ export function useDashboardMetrics() {
         ?.filter(r => r.date.startsWith(currentMonth))
         .reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
 
-      // Get contracts
-      const { data: contracts } = await supabase
-        .from('contracts')
-        .select('date, lots_traded, lots_zeroed');
+      // Get ALL contracts with batch fetching
+      const PAGE_SIZE = 1000;
+      let allContracts: any[] = [];
+      let page = 0;
+      let hasMore = true;
 
-      const totalLotsTraded = contracts?.reduce((sum, c) => sum + c.lots_traded, 0) || 0;
-      const totalLotsZeroed = contracts?.reduce((sum, c) => sum + c.lots_zeroed, 0) || 0;
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: contractsBatch } = await supabase
+          .from('contracts')
+          .select('date, lots_traded, lots_zeroed')
+          .range(from, to);
+
+        if (contractsBatch && contractsBatch.length > 0) {
+          allContracts = [...allContracts, ...contractsBatch];
+          hasMore = contractsBatch.length === PAGE_SIZE;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const totalLotsTraded = allContracts.reduce((sum, c) => sum + c.lots_traded, 0);
+      const totalLotsZeroed = allContracts.reduce((sum, c) => sum + c.lots_zeroed, 0);
 
       return {
         totalClients: totalClients || 0,
@@ -119,11 +138,32 @@ export function useContractsChart() {
   return useQuery({
     queryKey: ['contractsChart'],
     queryFn: async () => {
-      const { data: contracts } = await supabase
-        .from('contracts')
-        .select('date, lots_traded, lots_zeroed')
-        .gte('date', format(subMonths(new Date(), 11), 'yyyy-MM-01'))
-        .order('date');
+      const startDate = format(subMonths(new Date(), 11), 'yyyy-MM-01');
+      
+      // Batch fetch ALL contracts for the period
+      const PAGE_SIZE = 1000;
+      let allContracts: any[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: contractsBatch } = await supabase
+          .from('contracts')
+          .select('date, lots_traded, lots_zeroed')
+          .gte('date', startDate)
+          .range(from, to);
+
+        if (contractsBatch && contractsBatch.length > 0) {
+          allContracts = [...allContracts, ...contractsBatch];
+          hasMore = contractsBatch.length === PAGE_SIZE;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
 
       // Group by month
       const byMonth: Record<string, { traded: number; zeroed: number }> = {};
@@ -134,7 +174,7 @@ export function useContractsChart() {
         byMonth[month] = { traded: 0, zeroed: 0 };
       }
 
-      contracts?.forEach((c) => {
+      allContracts.forEach((c) => {
         const month = c.date.slice(0, 7);
         if (byMonth[month]) {
           byMonth[month].traded += c.lots_traded;

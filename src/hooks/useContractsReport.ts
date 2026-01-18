@@ -72,6 +72,47 @@ export interface ContractsReportOptions {
   endDate?: string;
 }
 
+// Batch fetch all contracts to overcome Supabase 1000 row limit
+async function fetchAllContracts(startDateStr: string, endDateStr?: string) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('contracts')
+      .select(`
+        *,
+        client:clients(id, name, state, assessor_id, partner:partners(id, name)),
+        asset:assets(id, code, name),
+        platform:platforms(id, name)
+      `)
+      .gte('date', startDateStr)
+      .range(from, to);
+
+    if (endDateStr) {
+      query = query.lte('date', endDateStr);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 export function useContractsReport(options: ContractsReportOptions | number = 12) {
   const opts = typeof options === 'number' ? { months: options } : options;
   const { months = 12, startDate: customStartDate, endDate: customEndDate } = opts;
@@ -91,24 +132,8 @@ export function useContractsReport(options: ContractsReportOptions | number = 12
         startDateStr = startDate.toISOString().split('T')[0];
       }
 
-      // Fetch contracts with relations
-      let query = supabase
-        .from('contracts')
-        .select(`
-          *,
-          client:clients(id, name, state, assessor_id, partner:partners(id, name)),
-          asset:assets(id, code, name),
-          platform:platforms(id, name)
-        `)
-        .gte('date', startDateStr);
-
-      if (endDateStr) {
-        query = query.lte('date', endDateStr);
-      }
-
-      const { data: contracts, error: contractsError } = await query;
-
-      if (contractsError) throw contractsError;
+      // Fetch ALL contracts with batch fetching
+      const contracts = await fetchAllContracts(startDateStr, endDateStr);
 
       // Fetch assessor profiles
       const { data: profiles } = await supabase
