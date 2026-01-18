@@ -22,12 +22,13 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useImportPlatformCosts } from '@/hooks/usePlatformCosts';
-import { useClients } from '@/hooks/useClients';
+import { useClients, useCreateClient } from '@/hooks/useClients';
 import { usePlatforms } from '@/hooks/useConfiguration';
 import { findClientMatchWithMappings, MatchConfidence, MatchMethod } from '@/utils/clientMatcher';
 import { useAccountMappings } from '@/hooks/useAccountMappings';
 import { parseExcelDate } from '@/utils/excelDateParser';
 import { MatchConfidenceBadge } from '@/components/imports/MatchConfidenceBadge';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import {
   Upload,
@@ -36,11 +37,19 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  UserPlus,
 } from 'lucide-react';
 
 interface ImportPlatformCostsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface ClientToCreate {
+  name: string;
+  accountNumber?: string;
+  cpf?: string;
+  cnpj?: string;
 }
 
 interface ParsedCost {
@@ -57,13 +66,17 @@ interface ParsedCost {
   matchedClientName?: string;
   matchConfidence: MatchConfidence;
   matchMethod: MatchMethod;
+  needsClientCreation?: boolean;
+  clientToCreate?: ClientToCreate;
 }
 
 export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatformCostsDialogProps) {
   const importCosts = useImportPlatformCosts();
+  const createClient = useCreateClient();
   const { data: clients } = useClients({});
   const { data: platforms } = usePlatforms();
   const { data: accountMappings } = useAccountMappings();
+  const { user } = useAuth();
 
   const [parsedData, setParsedData] = useState<ParsedCost[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -122,6 +135,8 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
           let matchedClientName: string | undefined;
           let matchConfidence: MatchConfidence = null;
           let matchMethod: MatchMethod = null;
+          let needsClientCreation = false;
+          let clientToCreate: ClientToCreate | undefined;
 
           if (clients) {
             const matchResult = findClientMatchWithMappings(clients, accountMappings || [], {
@@ -137,7 +152,16 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
               matchConfidence = matchResult.confidence;
               matchMethod = matchResult.matchedBy;
             } else {
-              errors.push('Cliente não encontrado');
+              // Client not found - prepare for creation as inactive
+              needsClientCreation = true;
+              const generatedName = clientName || `Cliente ${accountNumber || cpf || cnpj || 'Importado'}`;
+              clientToCreate = {
+                name: generatedName,
+                accountNumber,
+                cpf,
+                cnpj,
+              };
+              matchedClientName = generatedName;
             }
           }
 
@@ -149,8 +173,7 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
             errors.push('Plataforma não encontrada');
           }
 
-          // Validate value
-          if (value < 0) errors.push('Valor inválido');
+          // Note: negative values are allowed (client may have positive balance)
 
           return {
             date,
@@ -166,6 +189,8 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
             matchedClientName,
             matchConfidence,
             matchMethod,
+            needsClientCreation,
+            clientToCreate,
           };
         });
 
@@ -200,28 +225,82 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
     setProgress(0);
 
     try {
+      // Step 1: Create inactive clients for those that need it
+      const costsNeedingClientCreation = validCosts.filter((c) => c.needsClientCreation && c.clientToCreate);
+      const clientIdMap = new Map<string, string>(); // Maps unique key to created client ID
+
+      if (costsNeedingClientCreation.length > 0) {
+        // Group unique clients to create (by CPF/CNPJ/accountNumber)
+        const uniqueClientsToCreate = new Map<string, ClientToCreate>();
+        
+        for (const cost of costsNeedingClientCreation) {
+          if (!cost.clientToCreate) continue;
+          const key = cost.clientToCreate.cpf || cost.clientToCreate.cnpj || cost.clientToCreate.accountNumber || cost.clientToCreate.name;
+          if (!uniqueClientsToCreate.has(key)) {
+            uniqueClientsToCreate.set(key, cost.clientToCreate);
+          }
+        }
+
+        // Create each unique client as inactive
+        let createdCount = 0;
+        const totalToCreate = uniqueClientsToCreate.size;
+        
+        for (const [key, clientData] of uniqueClientsToCreate) {
+          try {
+            const clientType = clientData.cnpj ? 'pj' : 'pf';
+            const newClient = await createClient.mutateAsync({
+              name: clientData.name,
+              cpf: clientData.cpf || null,
+              cnpj: clientData.cnpj || null,
+              account_number: clientData.accountNumber || null,
+              type: clientType,
+              active: false, // Create as inactive
+              assessor_id: user?.id || null,
+            });
+            
+            clientIdMap.set(key, newClient.id);
+            createdCount++;
+            setProgress(Math.round((createdCount / totalToCreate) * 30)); // First 30% for client creation
+          } catch (error: any) {
+            console.error(`Error creating client ${clientData.name}:`, error);
+          }
+        }
+
+        toast.info(`${createdCount} clientes criados como inativos`);
+      }
+
+      // Step 2: Prepare costs with correct client IDs
       const costsToImport = validCosts.map((cost) => {
         const platform = platforms?.find(
           (p) => p.name.toLowerCase() === cost.platformName?.toLowerCase()
         );
 
+        let clientId = cost.matchedClientId;
+        
+        // If client was created, get the new ID
+        if (cost.needsClientCreation && cost.clientToCreate) {
+          const key = cost.clientToCreate.cpf || cost.clientToCreate.cnpj || cost.clientToCreate.accountNumber || cost.clientToCreate.name;
+          clientId = clientIdMap.get(key);
+        }
+
         return {
           date: cost.date,
-          client_id: cost.matchedClientId!,
+          client_id: clientId!,
           platform_id: platform!.id,
           value: cost.value,
         };
-      });
+      }).filter((c) => c.client_id); // Only include costs with valid client IDs
 
-      // Import in batches
+      // Step 3: Import costs in batches
       const batchSize = 100;
       for (let i = 0; i < costsToImport.length; i += batchSize) {
         const batch = costsToImport.slice(i, i + batchSize);
         await importCosts.mutateAsync(batch);
-        setProgress(Math.round(((i + batch.length) / costsToImport.length) * 100));
+        setProgress(30 + Math.round(((i + batch.length) / costsToImport.length) * 70)); // Remaining 70% for import
       }
 
-      toast.success(`${validCosts.length} custos importados com sucesso!`);
+      const newClientsCount = costsNeedingClientCreation.length > 0 ? clientIdMap.size : 0;
+      toast.success(`${costsToImport.length} custos importados${newClientsCount > 0 ? ` (${newClientsCount} novos clientes inativos)` : ''}!`);
       onOpenChange(false);
       setParsedData([]);
     } catch (error: any) {
@@ -236,6 +315,9 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
   const invalidCount = parsedData.filter((c) => !c.isValid).length;
   const lowConfidenceCount = parsedData.filter(
     (c) => c.isValid && c.matchConfidence === 'low'
+  ).length;
+  const newClientsCount = parsedData.filter(
+    (c) => c.isValid && c.needsClientCreation
   ).length;
 
   const formatCurrency = (value: number) => {
@@ -312,6 +394,14 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
                   <span className="font-medium text-green-600">{validCount}</span> custos válidos
                 </AlertDescription>
               </Alert>
+              {newClientsCount > 0 && (
+                <Alert className="flex-1 min-w-[140px]">
+                  <UserPlus className="h-4 w-4 text-blue-500" />
+                  <AlertDescription>
+                    <span className="font-medium text-blue-600">{newClientsCount}</span> novos clientes (inativos)
+                  </AlertDescription>
+                </Alert>
+              )}
               {lowConfidenceCount > 0 && (
                 <Alert className="flex-1 min-w-[140px]">
                   <XCircle className="h-4 w-4 text-orange-500" />
@@ -355,11 +445,18 @@ export function ImportPlatformCostsDialog({ open, onOpenChange }: ImportPlatform
                       }
                     >
                       <TableCell>
-                        <MatchConfidenceBadge
-                          confidence={cost.matchConfidence}
-                          matchedBy={cost.matchMethod}
-                          clientName={cost.matchedClientName}
-                        />
+                        {cost.needsClientCreation ? (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800">
+                            <UserPlus className="h-3 w-3 mr-1" />
+                            Novo
+                          </Badge>
+                        ) : (
+                          <MatchConfidenceBadge
+                            confidence={cost.matchConfidence}
+                            matchedBy={cost.matchMethod}
+                            clientName={cost.matchedClientName}
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {cost.date}
