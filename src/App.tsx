@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import LeadsPage from "./pages/LeadsPage";
 import ClientsPage from "./pages/ClientsPage";
 import ClientDetailPage from "./pages/ClientDetailPage";
+import RevenuesPage from "./pages/RevenuesPage";
 import ComingSoon from "./pages/ComingSoon";
 import NotFound from "./pages/NotFound";
 
@@ -34,13 +35,12 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              {/* Placeholder routes */}
               <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
               <Route path="/clients" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
               <Route path="/clients/:id" element={<ProtectedRoute><ClientDetailPage /></ProtectedRoute>} />
+              <Route path="/revenues" element={<ProtectedRoute><RevenuesPage /></ProtectedRoute>} />
               <Route path="/partners" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/partners/:id" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-              <Route path="/revenues" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/contracts" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/platforms" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/goals" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
@@ -49,7 +49,6 @@ const App = () => (
               <Route path="/reports/performance" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/reports/roi" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute requireSocio><ComingSoon /></ProtectedRoute>} />
-              {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
