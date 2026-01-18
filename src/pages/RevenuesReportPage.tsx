@@ -4,6 +4,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -32,6 +33,7 @@ import autoTable from 'jspdf-autotable';
 export default function RevenuesReportPage() {
   const [months, setMonths] = useState(12);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [visibleSeries, setVisibleSeries] = useState<string[]>(['gross', 'taxes', 'genial', 'zeve']);
   const { data, isLoading, error } = useRevenuesReport(months);
   const { isSocio } = useAuth();
   const navigate = useNavigate();
@@ -239,8 +241,31 @@ export default function RevenuesReportPage() {
         {/* Monthly Evolution Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Evolução Mensal da Receita</CardTitle>
-            <CardDescription>Comparativo entre Receita Bruta, Impostos, Genial e Zeve</CardDescription>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Evolução Mensal da Receita</CardTitle>
+                <CardDescription>Selecione quais métricas exibir no gráfico</CardDescription>
+              </div>
+              <ToggleGroup 
+                type="multiple" 
+                value={visibleSeries} 
+                onValueChange={(value) => value.length > 0 && setVisibleSeries(value)}
+                className="justify-start"
+              >
+                <ToggleGroupItem value="gross" aria-label="Bruto" className="data-[state=on]:bg-[hsl(var(--chart-1))]/20 data-[state=on]:text-[hsl(var(--chart-1))]">
+                  Bruto
+                </ToggleGroupItem>
+                <ToggleGroupItem value="taxes" aria-label="Impostos" className="data-[state=on]:bg-[hsl(var(--chart-2))]/20 data-[state=on]:text-[hsl(var(--chart-2))]">
+                  Impostos
+                </ToggleGroupItem>
+                <ToggleGroupItem value="genial" aria-label="Genial" className="data-[state=on]:bg-[hsl(var(--chart-3))]/20 data-[state=on]:text-[hsl(var(--chart-3))]">
+                  Genial
+                </ToggleGroupItem>
+                <ToggleGroupItem value="zeve" aria-label="Zeve" className="data-[state=on]:bg-primary/20 data-[state=on]:text-primary">
+                  Zeve
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-[350px]">
@@ -254,10 +279,18 @@ export default function RevenuesReportPage() {
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                   />
                   <Legend />
-                  <Area type="monotone" dataKey="gross" name="Bruto" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.2} />
-                  <Area type="monotone" dataKey="taxes" name="Impostos" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.2} />
-                  <Area type="monotone" dataKey="genial" name="Genial" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.2} />
-                  <Area type="monotone" dataKey="zeve" name="Zeve" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
+                  {visibleSeries.includes('gross') && (
+                    <Area type="monotone" dataKey="gross" name="Bruto" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.2} />
+                  )}
+                  {visibleSeries.includes('taxes') && (
+                    <Area type="monotone" dataKey="taxes" name="Impostos" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.2} />
+                  )}
+                  {visibleSeries.includes('genial') && (
+                    <Area type="monotone" dataKey="genial" name="Genial" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.2} />
+                  )}
+                  {visibleSeries.includes('zeve') && (
+                    <Area type="monotone" dataKey="zeve" name="Zeve" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
