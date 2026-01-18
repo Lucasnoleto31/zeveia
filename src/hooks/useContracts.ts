@@ -194,30 +194,50 @@ export function useImportContracts() {
   });
 }
 
+// Batch fetch contracts for stats to overcome 1000 row limit
+async function fetchContractsForStats(filters?: { startDate?: string; endDate?: string }) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('contracts')
+      .select(`date, lots_traded, lots_zeroed, asset:assets(code)`)
+      .range(from, to);
+
+    if (filters?.startDate) query = query.gte('date', filters.startDate);
+    if (filters?.endDate) query = query.lte('date', filters.endDate);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 // Aggregated contract stats
 export function useContractStats(filters?: ContractFilters) {
   return useQuery({
     queryKey: ['contractStats', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('contracts')
-        .select(`
-          date,
-          lots_traded,
-          lots_zeroed,
-          asset:assets(code)
-        `);
-
-      if (filters?.startDate) {
-        query = query.gte('date', filters.startDate);
-      }
-
-      if (filters?.endDate) {
-        query = query.lte('date', filters.endDate);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
+      // Use batch fetching to get ALL contracts
+      const data = await fetchContractsForStats({
+        startDate: filters?.startDate,
+        endDate: filters?.endDate,
+      });
 
       // Group by month
       const byMonth: Record<string, { traded: number; zeroed: number }> = {};
