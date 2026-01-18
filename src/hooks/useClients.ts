@@ -235,6 +235,28 @@ export function useImportClients() {
   });
 }
 
+export function useBulkUpdateClients() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: { id: string; patrimony?: number | null; [key: string]: any }[]) => {
+      const results = [];
+      for (const update of updates) {
+        const { id, ...data } = update;
+        const { data: result, error } = await supabase
+          .from('clients')
+          .update(data)
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        results.push(result);
+      }
+      return results;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+  });
+}
+
 // Client metrics for 360 view
 export function useClientMetrics(clientId: string) {
   return useQuery({
