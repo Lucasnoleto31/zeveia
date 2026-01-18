@@ -189,10 +189,9 @@ export function ImportContractsDialog({ open, onOpenChange }: ImportContractsDia
             errors.push('Plataforma não encontrada');
           }
 
-          // Validate values
-          if (lotsTraded < 0) errors.push('Lotes operados inválido');
-          if (lotsZeroed < 0) errors.push('Lotes zerados inválido');
-          if (lotsZeroed > lotsTraded) errors.push('Lotes zerados > operados');
+      // Validate values - apenas valores negativos são inválidos
+      if (lotsTraded < 0) errors.push('Lotes operados inválido');
+      if (lotsZeroed < 0) errors.push('Lotes zerados inválido');
 
           return {
             date,
