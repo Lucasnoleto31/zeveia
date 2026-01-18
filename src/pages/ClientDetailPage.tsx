@@ -63,8 +63,9 @@ const CHART_COLORS = [
   'hsl(var(--chart-3))',
   'hsl(var(--chart-4))',
   'hsl(var(--chart-5))',
-  'hsl(217, 91%, 60%)',
-  'hsl(280, 65%, 60%)',
+  'hsl(var(--chart-6))',
+  'hsl(var(--chart-7))',
+  'hsl(var(--chart-8))',
 ];
 
 function getPatrimonyRange(value?: number): string {
