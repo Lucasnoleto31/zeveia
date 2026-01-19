@@ -49,6 +49,9 @@ interface RevenuesReportData {
     monthlyData: { month: string; value: number }[];
     topClients: { name: string; value: number; id: string }[];
   }[];
+
+  // Revenue by subproduct
+  revenueBySubproduct: { subproduct: string; product: string; value: number }[];
   
   // Top 10 clients by revenue
   topClients: { name: string; value: number; id: string; percentage: number }[];
@@ -73,7 +76,7 @@ async function fetchAllRevenues(startDateStr: string): Promise<any[]> {
   while (hasMore) {
     const { data, error } = await supabase
       .from('revenues')
-      .select('*, product:products(id, name), client:clients(id, name, assessor_id, partner:partners(name))')
+      .select('*, product:products(id, name), subproduct:subproducts(id, name), client:clients(id, name, assessor_id, partner:partners(name))')
       .gte('date', startDateStr)
       .order('date', { ascending: true })
       .range(from, from + batchSize - 1);
@@ -364,6 +367,27 @@ export function useRevenuesReport(options: RevenuesReportOptions | number = 12) 
         .sort((a, b) => b.value - a.value)
         .slice(0, 10)
         .map(c => ({ ...c, percentage: totalZeve > 0 ? (c.value / totalZeve) * 100 : 0 }));
+
+      // Revenue by subproduct
+      const subproductMap = new Map<string, { product: string; value: number }>();
+      currentRevenues.forEach(r => {
+        if (!r.subproduct?.name) return;
+        const subproductName = r.subproduct.name;
+        const productName = r.product?.name || 'Sem produto';
+        
+        const existing = subproductMap.get(subproductName) || { product: productName, value: 0 };
+        existing.value += Number(r.our_share || 0);
+        subproductMap.set(subproductName, existing);
+      });
+
+      const revenueBySubproduct = Array.from(subproductMap.entries())
+        .map(([subproduct, data]) => ({ 
+          subproduct, 
+          product: data.product, 
+          value: data.value 
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10);
       
       return {
         totalGross,
@@ -379,6 +403,7 @@ export function useRevenuesReport(options: RevenuesReportOptions | number = 12) 
         revenueByPartner,
         revenueByAssessor,
         revenueByProduct,
+        revenueBySubproduct,
         topClients,
         availableMonths,
       };
