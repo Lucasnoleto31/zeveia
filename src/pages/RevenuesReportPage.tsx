@@ -8,6 +8,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
@@ -535,8 +536,46 @@ export default function RevenuesReportPage() {
                   <XAxis dataKey="month" />
                   <YAxis tickFormatter={(v) => formatCurrency(Math.abs(v))} />
                   <Tooltip
-                    formatter={(value: number, name: string) => [formatCurrency(Math.abs(value)), name]}
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      
+                      const novo = (payload.find(p => p.dataKey === 'novo')?.value as number) || 0;
+                      const expansao = (payload.find(p => p.dataKey === 'expansao')?.value as number) || 0;
+                      const contracao = Math.abs((payload.find(p => p.dataKey === 'contracao')?.value as number) || 0);
+                      const churn = Math.abs((payload.find(p => p.dataKey === 'churn')?.value as number) || 0);
+                      const saldo = novo + expansao - contracao - churn;
+                      
+                      return (
+                        <div className="rounded-lg border bg-card p-3 shadow-md">
+                          <p className="font-medium mb-2">{label}</p>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-muted-foreground">Novo:</span>
+                              <span className="font-medium" style={{ color: 'hsl(210, 100%, 70%)' }}>{formatCurrency(novo)}</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-muted-foreground">Expansão:</span>
+                              <span className="font-medium" style={{ color: 'hsl(210, 80%, 50%)' }}>{formatCurrency(expansao)}</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-muted-foreground">Contração:</span>
+                              <span className="font-medium text-muted-foreground">-{formatCurrency(contracao)}</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-muted-foreground">Churn:</span>
+                              <span className="font-medium text-destructive">-{formatCurrency(churn)}</span>
+                            </div>
+                            <Separator className="my-2" />
+                            <div className="flex justify-between gap-4 font-semibold">
+                              <span>Saldo Líquido:</span>
+                              <span className={saldo >= 0 ? 'text-green-500' : 'text-destructive'}>
+                                {saldo >= 0 ? '+' : ''}{formatCurrency(saldo)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }}
                   />
                   <Legend />
                   <ReferenceLine y={0} stroke="hsl(var(--border))" />
