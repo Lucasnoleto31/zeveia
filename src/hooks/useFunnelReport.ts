@@ -162,10 +162,14 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
       const activeLeads = totalLeads - lostLeads;
       const conversionRate = activeLeads > 0 ? (convertedLeads / activeLeads) * 100 : 0;
 
-      // Average conversion time
-      const convertedWithDates = allLeads.filter(
-        (l) => l.status === 'convertido' && l.converted_at
-      );
+      // Average conversion time - filter out invalid dates (year < 2000 or converted before created)
+      const convertedWithDates = allLeads.filter((l) => {
+        if (l.status !== 'convertido' || !l.converted_at) return false;
+        const created = parseISO(l.created_at);
+        const converted = parseISO(l.converted_at);
+        // Ignore invalid dates (conversion before creation or year < 2000)
+        return converted.getFullYear() >= 2000 && converted >= created;
+      });
       const avgConversionDays =
         convertedWithDates.length > 0
           ? convertedWithDates.reduce((sum, lead) => {
