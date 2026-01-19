@@ -661,6 +661,49 @@ export default function RevenuesReportPage() {
           </CardContent>
         </Card>
 
+        {/* Revenue by Subproduct */}
+        {data.revenueBySubproduct.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Receita por Subproduto</CardTitle>
+              <CardDescription>Top 10 subprodutos por receita (Zeve)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={data.revenueBySubproduct} 
+                    layout="vertical"
+                    margin={{ left: 20, right: 20 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
+                    <YAxis 
+                      type="category" 
+                      dataKey="subproduct" 
+                      width={150}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [formatCurrency(value), 'Receita']}
+                      labelFormatter={(label) => {
+                        const item = data.revenueBySubproduct.find(s => s.subproduct === label);
+                        return `${label} (${item?.product || ''})`;
+                      }}
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      fill="hsl(var(--chart-5))" 
+                      radius={[0, 4, 4, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Top Clients Table */}
         {isSocio && (
           <Card>
