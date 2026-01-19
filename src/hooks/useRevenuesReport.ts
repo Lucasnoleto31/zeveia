@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface RevenuesReportData {
   // Summary totals
@@ -182,11 +184,12 @@ export function useRevenuesReport(options: RevenuesReportOptions | number = 12) 
       
       if (customStartDate && customEndDate) {
         // For custom period, iterate through actual months in range
-        const current = new Date(startDate);
-        while (current <= endDate) {
-          const monthKey = current.toISOString().slice(0, 7);
+        const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const endLimit = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+        while (current <= endLimit) {
+          const monthKey = format(current, 'yyyy-MM');
           monthSet.add(monthKey);
-          const monthLabel = current.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+          const monthLabel = format(current, 'MMM/yy', { locale: ptBR });
           const data = monthlyMap.get(monthKey) || { gross: 0, taxes: 0, genial: 0, zeve: 0 };
           monthlyEvolution.push({ month: monthLabel, monthKey, ...data });
           current.setMonth(current.getMonth() + 1);
@@ -195,9 +198,9 @@ export function useRevenuesReport(options: RevenuesReportOptions | number = 12) 
         // For preset period, iterate from months ago to now
         for (let i = months - 1; i >= 0; i--) {
           const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const monthKey = date.toISOString().slice(0, 7);
+          const monthKey = format(date, 'yyyy-MM');
           monthSet.add(monthKey);
-          const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+          const monthLabel = format(date, 'MMM/yy', { locale: ptBR });
           const data = monthlyMap.get(monthKey) || { gross: 0, taxes: 0, genial: 0, zeve: 0 };
           monthlyEvolution.push({ month: monthLabel, monthKey, ...data });
         }

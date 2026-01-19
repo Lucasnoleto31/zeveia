@@ -257,58 +257,52 @@ export function useClientsChart() {
     queryFn: async () => {
       const startDate = format(subMonths(new Date(), 11), 'yyyy-MM-01');
       const PAGE_SIZE = 1000;
-      let allClients: any[] = [];
+      let allRevenues: any[] = [];
       let page = 0;
       let hasMore = true;
 
+      // Fetch revenues to determine active clients (clients that generated revenue)
       while (hasMore) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const { data: clientsBatch } = await supabase
-          .from('clients')
-          .select('created_at')
-          .eq('active', true)
-          .gte('created_at', startDate)
-          .order('created_at')
+        const { data: revenuesBatch } = await supabase
+          .from('revenues')
+          .select('date, client_id')
+          .gte('date', startDate)
+          .order('date')
           .range(from, to);
 
-        if (clientsBatch && clientsBatch.length > 0) {
-          allClients = [...allClients, ...clientsBatch];
-          hasMore = clientsBatch.length === PAGE_SIZE;
+        if (revenuesBatch && revenuesBatch.length > 0) {
+          allRevenues = [...allRevenues, ...revenuesBatch];
+          hasMore = revenuesBatch.length === PAGE_SIZE;
           page++;
         } else {
           hasMore = false;
         }
       }
 
-      const clients = allClients;
-
-      // Group by month (cumulative)
-      const byMonth: Record<string, number> = {};
+      // Group by month - count unique clients that generated revenue
+      const byMonth: Record<string, Set<string>> = {};
       
       // Initialize last 12 months
       for (let i = 11; i >= 0; i--) {
         const month = format(subMonths(new Date(), i), 'yyyy-MM');
-        byMonth[month] = 0;
+        byMonth[month] = new Set();
       }
 
-      clients?.forEach((c) => {
-        const month = c.created_at.slice(0, 7);
-        if (byMonth[month] !== undefined) {
-          byMonth[month]++;
+      allRevenues.forEach((r) => {
+        if (!r.client_id) return;
+        const month = r.date.slice(0, 7);
+        if (byMonth[month]) {
+          byMonth[month].add(r.client_id);
         }
       });
 
-      // Make it cumulative
-      let cumulative = 0;
-      return Object.entries(byMonth).map(([month, count]) => {
-        cumulative += count;
-        return {
-          month: format(new Date(month + '-01'), 'MMM/yy', { locale: ptBR }),
-          clientes: cumulative,
-        };
-      });
+      return Object.entries(byMonth).map(([month, clientSet]) => ({
+        month: format(new Date(month + '-01'), 'MMM/yy', { locale: ptBR }),
+        clientes: clientSet.size,
+      }));
     },
   });
 }
