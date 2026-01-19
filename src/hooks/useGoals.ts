@@ -173,24 +173,25 @@ export function useGoalProgress(year: number, month: number, assessorId?: string
       const { data: goals, error: goalsError } = await goalsQuery;
       if (goalsError) throw goalsError;
 
-      // Fetch clients converted in the month
-      let clientsQuery = supabase
-        .from('clients')
+      // Fetch leads converted in the month (status = 'convertido')
+      let leadsConvertedQuery = supabase
+        .from('leads')
         .select('id, assessor_id')
-        .gte('created_at', startDate)
-        .lte('created_at', endDate + 'T23:59:59');
+        .eq('status', 'convertido')
+        .gte('updated_at', startDate)
+        .lte('updated_at', endDate + 'T23:59:59');
 
       if (assessorId) {
-        clientsQuery = clientsQuery.eq('assessor_id', assessorId);
+        leadsConvertedQuery = leadsConvertedQuery.eq('assessor_id', assessorId);
       }
 
-      const { data: clients, error: clientsError } = await clientsQuery;
-      if (clientsError) throw clientsError;
+      const { data: leadsConverted, error: leadsError } = await leadsConvertedQuery;
+      if (leadsError) throw leadsError;
 
-      // Fetch revenues in the month
+      // Fetch revenues in the month (with client_id for active clients count)
       const { data: revenues, error: revenuesError } = await supabase
         .from('revenues')
-        .select('our_share, client:clients!inner(assessor_id)')
+        .select('our_share, client_id, client:clients!inner(assessor_id)')
         .gte('date', startDate)
         .lte('date', endDate);
 
@@ -205,26 +206,17 @@ export function useGoalProgress(year: number, month: number, assessorId?: string
 
       if (contractsError) throw contractsError;
 
-      // Fetch active clients count
-      let activeClientsQuery = supabase
-        .from('clients')
-        .select('id, assessor_id')
-        .eq('active', true);
-
-      if (assessorId) {
-        activeClientsQuery = activeClientsQuery.eq('assessor_id', assessorId);
-      }
-
-      const { data: activeClients, error: activeClientsError } = await activeClientsQuery;
-      if (activeClientsError) throw activeClientsError;
+      // Active clients = unique clients that generated revenue in the month
+      // (derived from revenues already fetched above)
 
       // Calculate actuals
       const calculateActual = (type: string, forAssessorId?: string | null) => {
         switch (type) {
           case 'clients_converted':
+            // Leads converted in the month
             return forAssessorId
-              ? clients?.filter(c => c.assessor_id === forAssessorId).length || 0
-              : clients?.length || 0;
+              ? leadsConverted?.filter(l => l.assessor_id === forAssessorId).length || 0
+              : leadsConverted?.length || 0;
           case 'revenue':
             if (forAssessorId) {
               return revenues?.filter((r: any) => r.client?.assessor_id === forAssessorId)
@@ -238,9 +230,15 @@ export function useGoalProgress(year: number, month: number, assessorId?: string
             }
             return contracts?.reduce((sum, c) => sum + c.lots_traded, 0) || 0;
           case 'active_clients':
-            return forAssessorId
-              ? activeClients?.filter(c => c.assessor_id === forAssessorId).length || 0
-              : activeClients?.length || 0;
+            // Unique clients that generated revenue in the month
+            if (forAssessorId) {
+              const clientIdsWithRevenue = revenues
+                ?.filter((r: any) => r.client?.assessor_id === forAssessorId)
+                .map((r: any) => r.client_id) || [];
+              return new Set(clientIdsWithRevenue).size;
+            }
+            const allClientIdsWithRevenue = revenues?.map((r: any) => r.client_id) || [];
+            return new Set(allClientIdsWithRevenue).size;
           default:
             return 0;
         }
