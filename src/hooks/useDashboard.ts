@@ -1,11 +1,57 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-export function useDashboardMetrics() {
+export interface DashboardPeriodOptions {
+  months?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+function generateMonthsList(options: DashboardPeriodOptions): { key: string; label: string }[] {
+  const { months = 12, startDate: customStart, endDate: customEnd } = options;
+  const monthsList: { key: string; label: string }[] = [];
+
+  if (customStart && customEnd) {
+    const start = parseISO(customStart);
+    const end = parseISO(customEnd);
+    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+    
+    while (current <= endMonth) {
+      monthsList.push({
+        key: format(current, 'yyyy-MM'),
+        label: format(current, 'MMM/yy', { locale: ptBR }),
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+  } else {
+    for (let i = months - 1; i >= 0; i--) {
+      const date = subMonths(new Date(), i);
+      monthsList.push({
+        key: format(date, 'yyyy-MM'),
+        label: format(date, 'MMM/yy', { locale: ptBR }),
+      });
+    }
+  }
+
+  return monthsList;
+}
+
+function getStartDate(options: DashboardPeriodOptions): string {
+  const { months = 12, startDate: customStart } = options;
+  if (customStart) {
+    return customStart;
+  }
+  return format(subMonths(new Date(), months - 1), 'yyyy-MM-01');
+}
+
+export function useDashboardMetrics(options: DashboardPeriodOptions = { months: 12 }) {
+  const { months = 12, startDate: customStart, endDate: customEnd } = options;
+  
   return useQuery({
-    queryKey: ['dashboardMetrics'],
+    queryKey: ['dashboardMetrics', months, customStart, customEnd],
     queryFn: async () => {
       // Get clients count
       const { count: totalClients } = await supabase
@@ -65,7 +111,8 @@ export function useDashboardMetrics() {
 
       const totalLeads = Object.values(leadsByStatus).reduce((a, b) => a + b, 0) - leadsByStatus.convertido - leadsByStatus.perdido;
 
-      // Batch fetch ALL revenues
+      // Batch fetch revenues for the selected period
+      const startDateStr = getStartDate(options);
       let allRevenues: any[] = [];
       let revenuesPage = 0;
       let hasMoreRevenues = true;
@@ -74,10 +121,16 @@ export function useDashboardMetrics() {
         const from = revenuesPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const { data: revenuesBatch } = await supabase
+        let query = supabase
           .from('revenues')
           .select('date, our_share')
-          .range(from, to);
+          .gte('date', startDateStr);
+        
+        if (customEnd) {
+          query = query.lte('date', customEnd);
+        }
+
+        const { data: revenuesBatch } = await query.range(from, to);
 
         if (revenuesBatch && revenuesBatch.length > 0) {
           allRevenues = [...allRevenues, ...revenuesBatch];
@@ -89,15 +142,17 @@ export function useDashboardMetrics() {
       }
 
       const revenues = allRevenues;
-
       const totalRevenue = revenues?.reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
 
-      const currentMonth = format(new Date(), 'yyyy-MM');
+      // Get current month revenue (or last month of the selected period)
+      const currentMonth = customEnd 
+        ? format(parseISO(customEnd), 'yyyy-MM') 
+        : format(new Date(), 'yyyy-MM');
       const monthlyRevenue = revenues
         ?.filter(r => r.date.startsWith(currentMonth))
         .reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
 
-      // Get ALL contracts with batch fetching
+      // Get ALL contracts with batch fetching for the period
       let allContracts: any[] = [];
       let contractsPage = 0;
       let hasMoreContracts = true;
@@ -106,10 +161,16 @@ export function useDashboardMetrics() {
         const from = contractsPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const { data: contractsBatch } = await supabase
+        let query = supabase
           .from('contracts')
           .select('date, lots_traded, lots_zeroed')
-          .range(from, to);
+          .gte('date', startDateStr);
+        
+        if (customEnd) {
+          query = query.lte('date', customEnd);
+        }
+
+        const { data: contractsBatch } = await query.range(from, to);
 
         if (contractsBatch && contractsBatch.length > 0) {
           allContracts = [...allContracts, ...contractsBatch];
@@ -138,11 +199,15 @@ export function useDashboardMetrics() {
   });
 }
 
-export function useRevenueChart() {
+export function useRevenueChart(options: DashboardPeriodOptions = { months: 12 }) {
+  const { months = 12, startDate: customStart, endDate: customEnd } = options;
+  
   return useQuery({
-    queryKey: ['revenueChart'],
+    queryKey: ['revenueChart', months, customStart, customEnd],
     queryFn: async () => {
-      const startDate = format(subMonths(new Date(), 11), 'yyyy-MM-01');
+      const startDateStr = getStartDate(options);
+      const monthsList = generateMonthsList(options);
+      
       const PAGE_SIZE = 1000;
       let allRevenues: any[] = [];
       let page = 0;
@@ -152,12 +217,17 @@ export function useRevenueChart() {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const { data: revenuesBatch } = await supabase
+        let query = supabase
           .from('revenues')
           .select('date, our_share')
-          .gte('date', startDate)
-          .order('date')
-          .range(from, to);
+          .gte('date', startDateStr)
+          .order('date');
+        
+        if (customEnd) {
+          query = query.lte('date', customEnd);
+        }
+
+        const { data: revenuesBatch } = await query.range(from, to);
 
         if (revenuesBatch && revenuesBatch.length > 0) {
           allRevenues = [...allRevenues, ...revenuesBatch];
@@ -168,37 +238,37 @@ export function useRevenueChart() {
         }
       }
 
-      const revenues = allRevenues;
-
       // Group by month
       const byMonth: Record<string, number> = {};
       
-      // Initialize last 12 months
-      for (let i = 11; i >= 0; i--) {
-        const month = format(subMonths(new Date(), i), 'yyyy-MM');
-        byMonth[month] = 0;
-      }
+      // Initialize months from the generated list
+      monthsList.forEach(m => {
+        byMonth[m.key] = 0;
+      });
 
-      revenues?.forEach((r) => {
+      allRevenues.forEach((r) => {
         const month = r.date.slice(0, 7);
         if (byMonth[month] !== undefined) {
           byMonth[month] += Number(r.our_share);
         }
       });
 
-      return Object.entries(byMonth).map(([month, value]) => ({
-        month: format(new Date(month + '-01'), 'MMM/yy', { locale: ptBR }),
-        value,
+      return monthsList.map(m => ({
+        month: m.label,
+        value: byMonth[m.key] || 0,
       }));
     },
   });
 }
 
-export function useContractsChart() {
+export function useContractsChart(options: DashboardPeriodOptions = { months: 12 }) {
+  const { months = 12, startDate: customStart, endDate: customEnd } = options;
+  
   return useQuery({
-    queryKey: ['contractsChart'],
+    queryKey: ['contractsChart', months, customStart, customEnd],
     queryFn: async () => {
-      const startDate = format(subMonths(new Date(), 11), 'yyyy-MM-01');
+      const startDateStr = getStartDate(options);
+      const monthsList = generateMonthsList(options);
       
       // Batch fetch ALL contracts for the period
       const PAGE_SIZE = 1000;
@@ -210,11 +280,16 @@ export function useContractsChart() {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const { data: contractsBatch } = await supabase
+        let query = supabase
           .from('contracts')
           .select('date, lots_traded, lots_zeroed')
-          .gte('date', startDate)
-          .range(from, to);
+          .gte('date', startDateStr);
+        
+        if (customEnd) {
+          query = query.lte('date', customEnd);
+        }
+
+        const { data: contractsBatch } = await query.range(from, to);
 
         if (contractsBatch && contractsBatch.length > 0) {
           allContracts = [...allContracts, ...contractsBatch];
@@ -228,11 +303,10 @@ export function useContractsChart() {
       // Group by month
       const byMonth: Record<string, { traded: number; zeroed: number }> = {};
       
-      // Initialize last 12 months
-      for (let i = 11; i >= 0; i--) {
-        const month = format(subMonths(new Date(), i), 'yyyy-MM');
-        byMonth[month] = { traded: 0, zeroed: 0 };
-      }
+      // Initialize months from the generated list
+      monthsList.forEach(m => {
+        byMonth[m.key] = { traded: 0, zeroed: 0 };
+      });
 
       allContracts.forEach((c) => {
         const month = c.date.slice(0, 7);
@@ -242,20 +316,24 @@ export function useContractsChart() {
         }
       });
 
-      return Object.entries(byMonth).map(([month, data]) => ({
-        month: format(new Date(month + '-01'), 'MMM/yy', { locale: ptBR }),
-        girados: data.traded,
-        zerados: data.zeroed,
+      return monthsList.map(m => ({
+        month: m.label,
+        girados: byMonth[m.key]?.traded || 0,
+        zerados: byMonth[m.key]?.zeroed || 0,
       }));
     },
   });
 }
 
-export function useClientsChart() {
+export function useClientsChart(options: DashboardPeriodOptions = { months: 12 }) {
+  const { months = 12, startDate: customStart, endDate: customEnd } = options;
+  
   return useQuery({
-    queryKey: ['clientsChart'],
+    queryKey: ['clientsChart', months, customStart, customEnd],
     queryFn: async () => {
-      const startDate = format(subMonths(new Date(), 11), 'yyyy-MM-01');
+      const startDateStr = getStartDate(options);
+      const monthsList = generateMonthsList(options);
+      
       const PAGE_SIZE = 1000;
       let allRevenues: any[] = [];
       let page = 0;
@@ -266,12 +344,17 @@ export function useClientsChart() {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const { data: revenuesBatch } = await supabase
+        let query = supabase
           .from('revenues')
           .select('date, client_id')
-          .gte('date', startDate)
-          .order('date')
-          .range(from, to);
+          .gte('date', startDateStr)
+          .order('date');
+        
+        if (customEnd) {
+          query = query.lte('date', customEnd);
+        }
+
+        const { data: revenuesBatch } = await query.range(from, to);
 
         if (revenuesBatch && revenuesBatch.length > 0) {
           allRevenues = [...allRevenues, ...revenuesBatch];
@@ -285,11 +368,10 @@ export function useClientsChart() {
       // Group by month - count unique clients that generated revenue
       const byMonth: Record<string, Set<string>> = {};
       
-      // Initialize last 12 months
-      for (let i = 11; i >= 0; i--) {
-        const month = format(subMonths(new Date(), i), 'yyyy-MM');
-        byMonth[month] = new Set();
-      }
+      // Initialize months from the generated list
+      monthsList.forEach(m => {
+        byMonth[m.key] = new Set();
+      });
 
       allRevenues.forEach((r) => {
         if (!r.client_id) return;
@@ -299,9 +381,9 @@ export function useClientsChart() {
         }
       });
 
-      return Object.entries(byMonth).map(([month, clientSet]) => ({
-        month: format(new Date(month + '-01'), 'MMM/yy', { locale: ptBR }),
-        clientes: clientSet.size,
+      return monthsList.map(m => ({
+        month: m.label,
+        clientes: byMonth[m.key]?.size || 0,
       }));
     },
   });

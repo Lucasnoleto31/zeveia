@@ -1,26 +1,43 @@
+import { useState, useMemo } from 'react';
+import { format } from 'date-fns';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { ContractsChart } from '@/components/dashboard/ContractsChart';
 import { ClientsChart } from '@/components/dashboard/ClientsChart';
 import { LeadsPipeline } from '@/components/dashboard/LeadsPipeline';
-import { useDashboardMetrics } from '@/hooks/useDashboard';
+import { PeriodFilter } from '@/components/reports/PeriodFilter';
+import { useDashboardMetrics, DashboardPeriodOptions } from '@/hooks/useDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   Users, 
   UserPlus, 
   DollarSign, 
-  TrendingUp,
-  Building2,
-  User,
   BarChart3,
-  Target
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Dashboard() {
-  const { data: metrics, isLoading } = useDashboardMetrics();
   const { profile, isSocio } = useAuth();
+  
+  // Period filter states
+  const [periodType, setPeriodType] = useState<'preset' | 'custom'>('preset');
+  const [months, setMonths] = useState(12);
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
+
+  // Calculate period options
+  const periodOptions = useMemo<DashboardPeriodOptions>(() => {
+    if (periodType === 'custom' && customStartDate && customEndDate) {
+      return {
+        startDate: format(customStartDate, 'yyyy-MM-dd'),
+        endDate: format(customEndDate, 'yyyy-MM-dd'),
+      };
+    }
+    return { months };
+  }, [periodType, months, customStartDate, customEndDate]);
+
+  const { data: metrics, isLoading } = useDashboardMetrics(periodOptions);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -33,16 +50,28 @@ export default function Dashboard() {
 
   return (
     <MainLayout>
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Olá, {profile?.name?.split(' ')[0]}! 👋
-        </h1>
-        <p className="text-muted-foreground">
-          {isSocio 
-            ? 'Visão geral do escritório' 
-            : 'Seu resumo de performance'}
-        </p>
+      {/* Welcome Section with Period Filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Olá, {profile?.name?.split(' ')[0]}! 👋
+          </h1>
+          <p className="text-muted-foreground">
+            {isSocio 
+              ? 'Visão geral do escritório' 
+              : 'Seu resumo de performance'}
+          </p>
+        </div>
+        <PeriodFilter 
+          periodType={periodType}
+          onPeriodTypeChange={setPeriodType}
+          months={months}
+          onMonthsChange={setMonths}
+          customStartDate={customStartDate}
+          onCustomStartDateChange={setCustomStartDate}
+          customEndDate={customEndDate}
+          onCustomEndDateChange={setCustomEndDate}
+        />
       </div>
 
       {/* Metrics Grid */}
@@ -67,9 +96,9 @@ export default function Dashboard() {
             icon={UserPlus}
           />
           <MetricCard
-            title="Receita do Mês"
-            value={formatCurrency(metrics?.monthlyRevenue || 0)}
-            description={`Total: ${formatCurrency(metrics?.totalRevenue || 0)}`}
+            title="Receita do Período"
+            value={formatCurrency(metrics?.totalRevenue || 0)}
+            description={`Mês atual: ${formatCurrency(metrics?.monthlyRevenue || 0)}`}
             icon={DollarSign}
           />
           <MetricCard
@@ -83,12 +112,12 @@ export default function Dashboard() {
 
       {/* Charts Grid */}
       <div className="grid gap-6 md:grid-cols-2 mb-6">
-        <RevenueChart />
-        <ContractsChart />
+        <RevenueChart periodOptions={periodOptions} />
+        <ContractsChart periodOptions={periodOptions} />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <ClientsChart />
+        <ClientsChart periodOptions={periodOptions} />
         {metrics && <LeadsPipeline data={metrics.leadsByStatus} />}
       </div>
     </MainLayout>

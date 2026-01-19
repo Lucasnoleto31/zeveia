@@ -1,10 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useRevenueChart } from '@/hooks/useDashboard';
+import { useRevenueChart, DashboardPeriodOptions } from '@/hooks/useDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function RevenueChart() {
-  const { data, isLoading } = useRevenueChart();
+interface RevenueChartProps {
+  periodOptions?: DashboardPeriodOptions;
+}
+
+export function RevenueChart({ periodOptions }: RevenueChartProps) {
+  const { data, isLoading } = useRevenueChart(periodOptions);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -35,7 +39,7 @@ export function RevenueChart() {
           <span className="text-lg">📈</span>
           Evolução de Receita
         </CardTitle>
-        <CardDescription>Nossa parte - Últimos 12 meses</CardDescription>
+        <CardDescription>Nossa parte - Período selecionado</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
