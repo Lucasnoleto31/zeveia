@@ -371,10 +371,10 @@ export function ImportClientsDialog({ open, onOpenChange }: ImportClientsDialogP
         const updates = updateClients.map(client => ({
           id: client.existingClientId!,
           patrimony: parseBrazilianNumber(client.patrimony),
-          email: client.email || undefined,
-          phone: client.phone || undefined,
-          state: client.state || undefined,
-          profile: client.profile || undefined,
+          email: client.email || null,
+          phone: client.phone || null,
+          state: client.state || null,
+          profile: client.profile || null,
         }));
 
         // Update in batches
