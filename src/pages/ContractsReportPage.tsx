@@ -22,7 +22,6 @@ import {
   Cell,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
@@ -376,7 +375,6 @@ export default function ContractsReportPage() {
               <ResponsiveContainer width="100%" height="100%">
                 {chartMode === 'absolute' ? (
                   <BarChart data={data.monthlyEvolution}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="month" className="text-xs" />
                     <YAxis className="text-xs" tickFormatter={(v) => formatNumber(v)} />
                     <Tooltip
@@ -389,7 +387,6 @@ export default function ContractsReportPage() {
                   </BarChart>
                 ) : (
                   <LineChart data={data.monthlyEvolution}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="month" className="text-xs" />
                     <YAxis className="text-xs" tickFormatter={(v) => `${v}%`} />
                     <Tooltip
@@ -423,7 +420,6 @@ export default function ContractsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.byPartner} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" tickFormatter={(v) => formatNumber(v)} />
                     <YAxis type="category" dataKey="name" className="text-xs" width={100} />
                     <Tooltip
@@ -449,7 +445,6 @@ export default function ContractsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.byPlatform} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" tickFormatter={(v) => formatNumber(v)} />
                     <YAxis type="category" dataKey="name" className="text-xs" width={100} />
                     <Tooltip
@@ -476,7 +471,6 @@ export default function ContractsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.byAsset}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="name" className="text-xs" />
                     <YAxis className="text-xs" tickFormatter={(v) => formatNumber(v)} />
                     <Tooltip
@@ -501,7 +495,6 @@ export default function ContractsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.byState} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" tickFormatter={(v) => formatNumber(v)} />
                     <YAxis type="category" dataKey="name" className="text-xs" width={60} />
                     <Tooltip
@@ -527,7 +520,6 @@ export default function ContractsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={data.byAssessor} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" tickFormatter={(v) => formatNumber(v)} />
                     <YAxis type="category" dataKey="name" className="text-xs" width={120} />
                     <Tooltip

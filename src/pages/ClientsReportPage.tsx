@@ -20,7 +20,6 @@ import {
   Cell,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Legend,
@@ -220,7 +219,6 @@ export default function ClientsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.patrimonyByProfile} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
                     <YAxis type="category" dataKey="profile" width={100} />
                     <Tooltip
@@ -244,7 +242,6 @@ export default function ClientsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.clientsByState}>
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="state" />
                     <YAxis />
                     <Tooltip
@@ -270,7 +267,6 @@ export default function ClientsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.activeClientsByMonth}>
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip
@@ -300,7 +296,6 @@ export default function ClientsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={data.avgContractVolume}>
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
                     <Tooltip
@@ -333,7 +328,6 @@ export default function ClientsReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.clientsByPartner} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" />
                     <YAxis type="category" dataKey="partner" width={120} tick={{ fontSize: 11 }} />
                     <Tooltip

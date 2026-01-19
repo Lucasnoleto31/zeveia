@@ -22,7 +22,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   PieChart,
@@ -280,7 +279,6 @@ export default function PlatformsReportPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.platformStats.slice(0, 8)} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={100} className="text-xs" />
                 <Tooltip 
@@ -337,7 +335,6 @@ export default function PlatformsReportPage() {
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
             <ComposedChart data={data.monthlyEvolution}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="month" className="text-xs" />
               <YAxis yAxisId="left" tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
               <YAxis yAxisId="right" orientation="right" />
@@ -367,7 +364,6 @@ export default function PlatformsReportPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.stateStats.slice(0, 10)} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis type="number" tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
                 <YAxis dataKey="state" type="category" width={60} className="text-xs" />
                 <Tooltip 
@@ -390,7 +386,6 @@ export default function PlatformsReportPage() {
             {data.partnerStats.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data.partnerStats.slice(0, 10)} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis type="number" tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
                   <YAxis dataKey="name" type="category" width={100} className="text-xs" />
                   <Tooltip 
@@ -428,7 +423,6 @@ export default function PlatformsReportPage() {
                   } 
                   layout="vertical"
                 >
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis type="number" tickFormatter={(v) => `R$ ${v.toFixed(2)}`} />
                   <YAxis dataKey="name" type="category" width={100} className="text-xs" />
                   <Tooltip 
@@ -505,7 +499,6 @@ export default function PlatformsReportPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.assessorStats}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="name" className="text-xs" />
                 <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
                 <Tooltip 

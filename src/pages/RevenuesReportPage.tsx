@@ -26,7 +26,6 @@ import {
   ComposedChart,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Legend,
@@ -498,7 +497,6 @@ export default function RevenuesReportPage() {
             <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data.monthlyEvolution}>
-                  <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis tickFormatter={(v) => formatCurrency(v)} />
                   <Tooltip
@@ -534,7 +532,6 @@ export default function RevenuesReportPage() {
             <div className="h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={data.mrrComponents}>
-                  <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis tickFormatter={(v) => formatCurrency(Math.abs(v))} />
                   <Tooltip
@@ -564,7 +561,6 @@ export default function RevenuesReportPage() {
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={data.revenueByPartner} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
                     <YAxis type="category" dataKey="partner" width={120} tick={{ fontSize: 11 }} />
                     <Tooltip
@@ -586,9 +582,8 @@ export default function RevenuesReportPage() {
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.revenueByAssessor} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
                       <YAxis type="category" dataKey="assessor" width={120} tick={{ fontSize: 11 }} />
                       <Tooltip
@@ -611,9 +606,8 @@ export default function RevenuesReportPage() {
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.topClients} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
                       <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
                       <Tooltip
@@ -676,7 +670,6 @@ export default function RevenuesReportPage() {
                     layout="vertical"
                     margin={{ left: 20, right: 20 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
                     <YAxis 
                       type="category" 
@@ -777,7 +770,6 @@ export default function RevenuesReportPage() {
                 <div className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={selectedProductData.monthlyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis tickFormatter={(v) => formatCurrency(v)} />
                       <Tooltip
