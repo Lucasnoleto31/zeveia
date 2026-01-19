@@ -10,7 +10,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
@@ -297,8 +296,7 @@ export default function PartnerROIReportPage() {
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={topPartnersData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
+                  <XAxis
                     type="number" 
                     className="text-xs"
                     tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
@@ -331,7 +329,6 @@ export default function PartnerROIReportPage() {
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={monthlyAggregated}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis 
                     className="text-xs"

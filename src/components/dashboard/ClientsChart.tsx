@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useClientsChart, DashboardPeriodOptions } from '@/hooks/useDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -37,8 +37,7 @@ export function ClientsChart({ periodOptions }: ClientsChartProps) {
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis 
+              <XAxis
                 dataKey="month" 
                 tick={{ fontSize: 12 }}
                 tickLine={false}

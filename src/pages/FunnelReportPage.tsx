@@ -9,7 +9,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
@@ -218,7 +217,6 @@ export default function FunnelReportPage() {
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data.leadsByMonth}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis className="text-xs" />
                   <Tooltip
@@ -284,9 +282,8 @@ export default function FunnelReportPage() {
             </CardHeader>
             <CardContent>
               {data.leadsByCampaign.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={data.leadsByCampaign} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" />
                     <YAxis dataKey="campaign" type="category" width={100} className="text-xs" />
                     <Tooltip
@@ -547,7 +544,6 @@ export default function FunnelReportPage() {
                       };
                     })}
                   >
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="cohort" className="text-xs" />
                     <YAxis className="text-xs" />
                     <Tooltip

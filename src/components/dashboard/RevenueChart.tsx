@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useRevenueChart, DashboardPeriodOptions } from '@/hooks/useDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -51,7 +51,6 @@ export function RevenueChart({ periodOptions }: RevenueChartProps) {
                   <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis 
                 dataKey="month" 
                 tick={{ fontSize: 12 }}

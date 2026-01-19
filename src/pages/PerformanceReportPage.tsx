@@ -17,7 +17,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
@@ -303,7 +302,6 @@ export default function PerformanceReportPage() {
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis 
                     className="text-xs"
@@ -377,9 +375,8 @@ export default function PerformanceReportPage() {
             <CardTitle>Comparativo de Receita por Assessor</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.assessors}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="name" className="text-xs" />
                 <YAxis 
                   className="text-xs"
