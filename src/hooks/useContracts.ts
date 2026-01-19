@@ -69,45 +69,54 @@ export function useContractsPaginated(filters?: ContractFilters): ReturnType<typ
   });
 }
 
-// Non-paginated contracts for backwards compatibility
+// Batch fetch all contracts to overcome 1000 row limit
+async function fetchAllContracts(filters?: Omit<ContractFilters, 'page' | 'pageSize'>) {
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
+      .from('contracts')
+      .select(`
+        *,
+        client:clients(*),
+        asset:assets(*),
+        platform:platforms(*)
+      `)
+      .order('date', { ascending: false })
+      .range(from, to);
+
+    if (filters?.clientId) query = query.eq('client_id', filters.clientId);
+    if (filters?.assetId) query = query.eq('asset_id', filters.assetId);
+    if (filters?.platformId) query = query.eq('platform_id', filters.platformId);
+    if (filters?.startDate) query = query.gte('date', filters.startDate);
+    if (filters?.endDate) query = query.lte('date', filters.endDate);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData as Contract[];
+}
+
+// Non-paginated contracts for backwards compatibility (now with batch fetching)
 export function useContracts(filters?: Omit<ContractFilters, 'page' | 'pageSize'>) {
   return useQuery({
     queryKey: ['contracts', 'all', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('contracts')
-        .select(`
-          *,
-          client:clients(*),
-          asset:assets(*),
-          platform:platforms(*)
-        `)
-        .order('date', { ascending: false });
-
-      if (filters?.clientId) {
-        query = query.eq('client_id', filters.clientId);
-      }
-
-      if (filters?.assetId) {
-        query = query.eq('asset_id', filters.assetId);
-      }
-
-      if (filters?.platformId) {
-        query = query.eq('platform_id', filters.platformId);
-      }
-
-      if (filters?.startDate) {
-        query = query.gte('date', filters.startDate);
-      }
-
-      if (filters?.endDate) {
-        query = query.lte('date', filters.endDate);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Contract[];
-    },
+    queryFn: () => fetchAllContracts(filters),
   });
 }
 
