@@ -1,10 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useClientsChart } from '@/hooks/useDashboard';
+import { useClientsChart, DashboardPeriodOptions } from '@/hooks/useDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function ClientsChart() {
-  const { data, isLoading } = useClientsChart();
+interface ClientsChartProps {
+  periodOptions?: DashboardPeriodOptions;
+}
+
+export function ClientsChart({ periodOptions }: ClientsChartProps) {
+  const { data, isLoading } = useClientsChart(periodOptions);
 
   if (isLoading) {
     return (
@@ -27,7 +31,7 @@ export function ClientsChart() {
           <span className="text-lg">👥</span>
           Clientes Ativos
         </CardTitle>
-        <CardDescription>Evolução acumulada - Últimos 12 meses</CardDescription>
+        <CardDescription>Evolução acumulada - Período selecionado</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">

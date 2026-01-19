@@ -1,10 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useContractsChart } from '@/hooks/useDashboard';
+import { useContractsChart, DashboardPeriodOptions } from '@/hooks/useDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function ContractsChart() {
-  const { data, isLoading } = useContractsChart();
+interface ContractsChartProps {
+  periodOptions?: DashboardPeriodOptions;
+}
+
+export function ContractsChart({ periodOptions }: ContractsChartProps) {
+  const { data, isLoading } = useContractsChart(periodOptions);
 
   if (isLoading) {
     return (
@@ -27,7 +31,7 @@ export function ContractsChart() {
           <span className="text-lg">📊</span>
           Evolução de Contratos
         </CardTitle>
-        <CardDescription>Lotes girados vs zerados - Últimos 12 meses</CardDescription>
+        <CardDescription>Lotes girados vs zerados - Período selecionado</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
