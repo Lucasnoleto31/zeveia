@@ -204,11 +204,11 @@ export default function ClientDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Receita do Mês */}
+          {/* Receita Mês Anterior */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Receita do Mês
+                Receita Mês Anterior
               </CardTitle>
               {metrics?.revenueChange !== undefined && metrics.revenueChange >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-green-500" />
@@ -224,7 +224,7 @@ export default function ClientDetailPage() {
                   <div className="text-2xl font-bold">{formatCurrency(metrics?.monthlyRevenue)}</div>
                   <p className={`text-xs ${metrics?.revenueChange !== undefined && metrics.revenueChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                     {metrics?.revenueChange !== undefined && metrics.revenueChange >= 0 ? '+' : ''}
-                    {metrics?.revenueChange?.toFixed(0) || 0}% vs mês anterior
+                    {metrics?.revenueChange?.toFixed(0) || 0}% vs 2 meses atrás
                   </p>
                 </>
               )}
@@ -300,7 +300,7 @@ export default function ClientDetailPage() {
                   <div className="text-2xl font-bold">{formatNumber(metrics?.totalLotsTraded || 0)}</div>
                   <p className={`text-xs ${(metrics?.lotsChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                     {(metrics?.lotsChange || 0) >= 0 ? '+' : ''}
-                    {metrics?.lotsChange?.toFixed(0) || 0}% vs mês anterior
+                    {metrics?.lotsChange?.toFixed(0) || 0}% vs 2 meses atrás
                   </p>
                 </>
               )}
@@ -345,7 +345,7 @@ export default function ClientDetailPage() {
                   <div className="text-2xl font-bold">{formatCurrency(metrics?.totalPlatformCost)}</div>
                   <p className={`text-xs ${(metrics?.platformCostChange || 0) >= 0 ? 'text-red-500' : 'text-green-500'}`}>
                     {(metrics?.platformCostChange || 0) >= 0 ? '+' : ''}
-                    {metrics?.platformCostChange?.toFixed(0) || 0}% vs mês anterior
+                    {metrics?.platformCostChange?.toFixed(0) || 0}% vs 2 meses atrás
                   </p>
                 </>
               )}

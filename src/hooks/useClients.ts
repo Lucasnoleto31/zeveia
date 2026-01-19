@@ -370,17 +370,19 @@ export function useClientMetrics(clientId: string) {
 
       const totalRevenue = revenues?.reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
       
-      // Current and previous month calculations
+      // Use last closed month as reference (current month is not finalized)
       const now = new Date();
-      const currentMonth = now.toISOString().slice(0, 7);
-      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+      const lastClosedMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+      const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 7);
       
+      // Revenue from last closed month
       const monthlyRevenue = revenues
-        ?.filter(r => r.date.startsWith(currentMonth))
+        ?.filter(r => r.date.startsWith(lastClosedMonth))
         .reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
       
+      // Revenue from two months ago (for comparison)
       const previousMonthRevenue = revenues
-        ?.filter(r => r.date.startsWith(prevMonth))
+        ?.filter(r => r.date.startsWith(twoMonthsAgo))
         .reduce((sum, r) => sum + Number(r.our_share), 0) || 0;
       
       // Calculate revenue change percentage
@@ -430,12 +432,12 @@ export function useClientMetrics(clientId: string) {
       const totalLotsZeroed = contracts?.reduce((sum, c) => sum + (c.lots_zeroed || 0), 0) || 0;
       const zeroRate = totalLotsTraded > 0 ? (totalLotsZeroed / totalLotsTraded) * 100 : 0;
 
-      // Current month contracts
+      // Lots from last closed month
       const monthlyLotsTraded = contracts
-        ?.filter(c => c.date.startsWith(currentMonth))
+        ?.filter(c => c.date.startsWith(lastClosedMonth))
         .reduce((sum, c) => sum + (c.lots_traded || 0), 0) || 0;
       const prevMonthLotsTraded = contracts
-        ?.filter(c => c.date.startsWith(prevMonth))
+        ?.filter(c => c.date.startsWith(twoMonthsAgo))
         .reduce((sum, c) => sum + (c.lots_traded || 0), 0) || 0;
       const lotsChange = prevMonthLotsTraded > 0 
         ? ((monthlyLotsTraded - prevMonthLotsTraded) / prevMonthLotsTraded) * 100 
@@ -472,11 +474,12 @@ export function useClientMetrics(clientId: string) {
 
       // --- Platform Costs Stats ---
       const totalPlatformCost = platformCosts?.reduce((sum, pc) => sum + Number(pc.value), 0) || 0;
+      // Platform cost from last closed month
       const monthlyPlatformCost = platformCosts
-        ?.filter(pc => pc.date.startsWith(currentMonth))
+        ?.filter(pc => pc.date.startsWith(lastClosedMonth))
         .reduce((sum, pc) => sum + Number(pc.value), 0) || 0;
       const prevMonthPlatformCost = platformCosts
-        ?.filter(pc => pc.date.startsWith(prevMonth))
+        ?.filter(pc => pc.date.startsWith(twoMonthsAgo))
         .reduce((sum, pc) => sum + Number(pc.value), 0) || 0;
       const platformCostChange = prevMonthPlatformCost > 0 
         ? ((monthlyPlatformCost - prevMonthPlatformCost) / prevMonthPlatformCost) * 100 
