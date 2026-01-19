@@ -469,6 +469,7 @@ export type Database = {
           email: string | null
           id: string
           loss_reason_id: string | null
+          lost_at: string | null
           name: string
           observations: string | null
           origin_id: string | null
@@ -487,6 +488,7 @@ export type Database = {
           email?: string | null
           id?: string
           loss_reason_id?: string | null
+          lost_at?: string | null
           name: string
           observations?: string | null
           origin_id?: string | null
@@ -505,6 +507,7 @@ export type Database = {
           email?: string | null
           id?: string
           loss_reason_id?: string | null
+          lost_at?: string | null
           name?: string
           observations?: string | null
           origin_id?: string | null
