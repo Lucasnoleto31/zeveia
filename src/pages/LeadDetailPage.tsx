@@ -23,7 +23,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Circle,
-  Handshake
+  Handshake,
+  Trash2
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,8 +32,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { useLead, useLeadMetrics } from '@/hooks/useLeads';
-import { useUpdateLead } from '@/hooks/useLeads';
+import { useLead, useLeadMetrics, useUpdateLead, useDeleteLead } from '@/hooks/useLeads';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
 import { InteractionFormDialog } from '@/components/clients/InteractionFormDialog';
 import { ConvertToClientDialog } from '@/components/leads/ConvertToClientDialog';
@@ -92,11 +102,23 @@ export default function LeadDetailPage() {
   const { data: lead, isLoading: leadLoading } = useLead(id || '');
   const { data: metrics, isLoading: metricsLoading } = useLeadMetrics(id || '');
   const updateLead = useUpdateLead();
+  const deleteLead = useDeleteLead();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [lostDialogOpen, setLostDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const handleDeleteLead = async () => {
+    try {
+      await deleteLead.mutateAsync(lead!.id);
+      toast.success('Lead excluído com sucesso');
+      navigate('/leads');
+    } catch (error) {
+      toast.error('Erro ao excluir lead');
+    }
+  };
 
   if (leadLoading || metricsLoading) {
     return (
@@ -183,6 +205,14 @@ export default function LeadDetailPage() {
               </Button>
             </>
           )}
+          <Button 
+            variant="destructive" 
+            size="icon"
+            onClick={() => setDeleteDialogOpen(true)}
+            title="Excluir Lead"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       }
     >
@@ -529,6 +559,27 @@ export default function LeadDetailPage() {
         onOpenChange={setLostDialogOpen}
         lead={lead}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Lead</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o lead "{lead.name}"? 
+              Esta ação é irreversível e todas as interações associadas também serão excluídas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteLead}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }
