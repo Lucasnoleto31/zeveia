@@ -195,7 +195,7 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
       const leadsByMonth = Object.entries(monthsData)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([month, data]) => ({
-          month: format(parseISO(`${month}-01`), 'MMM/yy'),
+          month: format(parseISO(`${month}-01`), 'MMM/yy', { locale: ptBR }),
           ...data,
         }));
 
