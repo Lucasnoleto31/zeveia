@@ -211,6 +211,19 @@ export function usePartnerDetail(partnerId: string | null) {
 
       const revenues = allRevenues;
 
+      // Get paid commissions for this partner
+      const { data: paidCommissionsData, error: commissionsError } = await supabase
+        .from('partner_commissions')
+        .select('amount')
+        .eq('partner_id', partnerId)
+        .eq('status', 'paid');
+
+      if (commissionsError) throw commissionsError;
+
+      const totalPaidCommission = paidCommissionsData?.reduce(
+        (sum, c) => sum + Number(c.amount), 0
+      ) || 0;
+
       // Calculate metrics
       const clientsWithMetrics = clients?.map(client => {
         const clientRevenues = revenues?.filter(r => r.client_id === client.id) || [];
@@ -226,7 +239,7 @@ export function usePartnerDetail(partnerId: string | null) {
 
       const totalRevenue = clientsWithMetrics.reduce((sum, c) => sum + c.totalRevenue, 0);
       const totalPatrimony = clientsWithMetrics.reduce((sum, c) => sum + (Number(c.patrimony) || 0), 0);
-      const estimatedCommission = totalRevenue * (partner.commission_percentage / 100);
+      const roi = totalPaidCommission > 0 ? totalRevenue / totalPaidCommission : 0;
 
       // Revenue by month (last 12 months)
       const revenueByMonth: Record<string, number> = {};
@@ -243,7 +256,8 @@ export function usePartnerDetail(partnerId: string | null) {
           activeClients: clients?.filter(c => c.active).length || 0,
           totalRevenue,
           totalPatrimony,
-          estimatedCommission,
+          paidCommission: totalPaidCommission,
+          roi,
           avgRevenuePerClient: clients?.length ? totalRevenue / clients.length : 0,
         },
         revenueByMonth: Object.entries(revenueByMonth)
