@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { useCreateLead, useUpdateLead } from '@/hooks/useLeads';
 import { useOrigins, useCampaigns, useLossReasons } from '@/hooks/useConfiguration';
 import { usePartners } from '@/hooks/usePartners';
+import { useAssessors } from '@/hooks/useProfiles';
 import { useAuth } from '@/contexts/AuthContext';
 import { Lead, LeadStatus } from '@/types/database';
 import { toast } from 'sonner';
@@ -53,6 +54,7 @@ const leadSchema = z.object({
   partner_id: z.string().optional().or(z.literal('')),
   loss_reason_id: z.string().optional().or(z.literal('')),
   observations: z.string().trim().max(1000).optional().or(z.literal('')),
+  assessor_id: z.string().min(1, 'Assessor é obrigatório'),
 });
 
 type LeadFormData = z.infer<typeof leadSchema>;
@@ -64,13 +66,14 @@ interface LeadFormDialogProps {
 }
 
 export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps) {
-  const { user } = useAuth();
+  const { user, isSocio } = useAuth();
   const createLead = useCreateLead();
   const updateLead = useUpdateLead();
   const { data: origins } = useOrigins();
   const { data: campaigns } = useCampaigns();
   const { data: lossReasons } = useLossReasons();
   const { data: partners } = usePartners({ active: true });
+  const { data: assessors } = useAssessors();
 
   const isEditing = !!lead;
 
@@ -87,6 +90,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
       partner_id: '',
       loss_reason_id: '',
       observations: '',
+      assessor_id: user?.id || '',
     },
   });
 
@@ -103,6 +107,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
         partner_id: lead.partner_id || '',
         loss_reason_id: lead.loss_reason_id || '',
         observations: lead.observations || '',
+        assessor_id: lead.assessor_id,
       });
     } else {
       form.reset({
@@ -116,9 +121,10 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
         partner_id: '',
         loss_reason_id: '',
         observations: '',
+        assessor_id: user?.id || '',
       });
     }
-  }, [lead, form]);
+  }, [lead, form, user]);
 
   const watchStatus = form.watch('status');
 
@@ -135,7 +141,7 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
         partner_id: data.partner_id || null,
         loss_reason_id: data.status === 'perdido' ? (data.loss_reason_id || null) : null,
         observations: data.observations || null,
-        assessor_id: lead?.assessor_id || user!.id,
+        assessor_id: data.assessor_id,
         updated_by: user!.id,
       };
 
@@ -346,6 +352,34 @@ export function LeadFormDialog({ open, onOpenChange, lead }: LeadFormDialogProps
                 </FormItem>
               )}
             />
+
+            {/* Assessor - only visible for socios */}
+            {isSocio && (
+              <FormField
+                control={form.control}
+                name="assessor_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assessor Responsável</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o assessor" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {assessors?.map((assessor) => (
+                          <SelectItem key={assessor.user_id} value={assessor.user_id}>
+                            {assessor.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Loss Reason (only if status is 'perdido') */}
             {watchStatus === 'perdido' && (

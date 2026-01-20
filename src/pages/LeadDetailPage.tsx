@@ -33,6 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { useLead, useLeadMetrics, useUpdateLead, useDeleteLead } from '@/hooks/useLeads';
+import { useProfiles } from '@/hooks/useProfiles';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -101,8 +102,11 @@ export default function LeadDetailPage() {
   const navigate = useNavigate();
   const { data: lead, isLoading: leadLoading } = useLead(id || '');
   const { data: metrics, isLoading: metricsLoading } = useLeadMetrics(id || '');
+  const { data: profiles } = useProfiles();
   const updateLead = useUpdateLead();
   const deleteLead = useDeleteLead();
+  
+  const assessorName = lead ? profiles?.find(p => p.user_id === lead.assessor_id)?.name || 'Não definido' : '';
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
@@ -353,6 +357,16 @@ export default function LeadDetailPage() {
                     <p className="font-medium">-</p>
                   )}
                 </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Assessor Responsável</p>
+                  <p className="font-medium flex items-center gap-1">
+                    <Users className="h-4 w-4" />
+                    {assessorName}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Criado em</p>
                   <p className="font-medium">
