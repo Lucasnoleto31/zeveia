@@ -3,6 +3,65 @@ import { supabase } from '@/integrations/supabase/client';
 import { Partner } from '@/types/database';
 import { startOfMonth, endOfMonth, subMonths, format, parseISO } from 'date-fns';
 
+const PAGE_SIZE = 1000;
+
+async function fetchAllClients() {
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, partner_id, patrimony, active, created_at')
+      .not('partner_id', 'is', null)
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+  return allData;
+}
+
+async function fetchAllRevenues(startDateStr: string) {
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('revenues')
+      .select('client_id, our_share, date')
+      .gte('date', startDateStr)
+      .order('date', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+  return allData;
+}
+
 export interface PartnerROIMetrics {
   partner: Partner;
   clientCount: number;
@@ -81,22 +140,11 @@ export function usePartnerROIReport(options: PartnerROIReportOptions | number = 
 
       if (partnersError) throw partnersError;
 
-      // Get all clients with partner
-      const { data: clients, error: clientsError } = await supabase
-        .from('clients')
-        .select('id, name, partner_id, patrimony, active, created_at')
-        .not('partner_id', 'is', null);
+      // Get all clients with partner using batch fetching
+      const clients = await fetchAllClients();
 
-      if (clientsError) throw clientsError;
-
-      // Get revenues
-      const { data: revenues, error: revenuesError } = await supabase
-        .from('revenues')
-        .select('client_id, our_share, date')
-        .gte('date', previousStartDate.toISOString().split('T')[0])
-        .order('date', { ascending: false });
-
-      if (revenuesError) throw revenuesError;
+      // Get revenues using batch fetching
+      const revenues = await fetchAllRevenues(previousStartDate.toISOString().split('T')[0]);
 
       // Create client to partner mapping
       const clientPartnerMap = new Map(clients?.map(c => [c.id, c.partner_id]) || []);
