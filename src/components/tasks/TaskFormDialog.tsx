@@ -91,8 +91,8 @@ export function TaskFormDialog({
       status: 'pendente',
       due_date: new Date(),
       due_time: '09:00',
-      client_id: defaultClientId || '',
-      lead_id: defaultLeadId || '',
+      client_id: defaultClientId || 'none',
+      lead_id: defaultLeadId || 'none',
       assignee_id: user?.id || '',
     },
   });
@@ -108,8 +108,8 @@ export function TaskFormDialog({
         status: task.status,
         due_date: dueDate,
         due_time: format(dueDate, 'HH:mm'),
-        client_id: task.client_id || '',
-        lead_id: task.lead_id || '',
+        client_id: task.client_id || 'none',
+        lead_id: task.lead_id || 'none',
         assignee_id: task.assignee_id,
       });
     } else {
@@ -121,8 +121,8 @@ export function TaskFormDialog({
         status: 'pendente',
         due_date: new Date(),
         due_time: '09:00',
-        client_id: defaultClientId || '',
-        lead_id: defaultLeadId || '',
+        client_id: defaultClientId || 'none',
+        lead_id: defaultLeadId || 'none',
         assignee_id: user?.id || '',
       });
     }
@@ -142,8 +142,8 @@ export function TaskFormDialog({
         priority: data.priority as Task['priority'],
         status: data.status as Task['status'],
         due_date: dueDate.toISOString(),
-        client_id: data.client_id || null,
-        lead_id: data.lead_id || null,
+        client_id: data.client_id === 'none' ? null : data.client_id,
+        lead_id: data.lead_id === 'none' ? null : data.lead_id,
         assignee_id: data.assignee_id,
         created_by: user?.id || '',
       };
@@ -354,7 +354,7 @@ export function TaskFormDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
+                        <SelectItem value="none">Nenhum</SelectItem>
                         {clients?.map((client) => (
                           <SelectItem key={client.id} value={client.id}>
                             {client.name}
@@ -380,7 +380,7 @@ export function TaskFormDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
+                        <SelectItem value="none">Nenhum</SelectItem>
                         {leads?.map((lead) => (
                           <SelectItem key={lead.id} value={lead.id}>
                             {lead.name}
