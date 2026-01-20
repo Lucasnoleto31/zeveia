@@ -84,7 +84,7 @@ export default function PartnerROIReportPage() {
         ['Clientes Indicados', data.totals.clients.toString()],
         ['Receita Gerada', formatCurrency(data.totals.revenue)],
         ['Patrimônio Total', formatCurrency(data.totals.patrimony)],
-        ['Comissões Estimadas', formatCurrency(data.totals.commissions)],
+        ['Comissões Pagas', formatCurrency(data.totals.commissions)],
       ],
     });
 
@@ -100,7 +100,7 @@ export default function PartnerROIReportPage() {
         p.partner.type === 'parceiro' ? 'Parceiro' : 'Influenciador',
         p.clientCount.toString(),
         formatCurrency(p.totalRevenue),
-        formatCurrency(p.estimatedCommission),
+        formatCurrency(p.paidCommission),
         formatPercent(p.revenueGrowth),
       ]),
     });
@@ -132,7 +132,7 @@ export default function PartnerROIReportPage() {
   const topPartnersData = data.partners.slice(0, 10).map(p => ({
     name: p.partner.name.length > 15 ? p.partner.name.slice(0, 15) + '...' : p.partner.name,
     revenue: p.totalRevenue,
-    commission: p.estimatedCommission,
+    commission: p.paidCommission,
     clients: p.clientCount,
   }));
 
@@ -270,7 +270,7 @@ export default function PartnerROIReportPage() {
             <CardContent className="p-4 text-center">
               <Percent className="h-5 w-5 mx-auto text-muted-foreground mb-2" />
               <p className="text-2xl font-bold">{formatCurrency(data.totals.commissions)}</p>
-              <p className="text-xs text-muted-foreground">Comissões Estimadas</p>
+              <p className="text-xs text-muted-foreground">Comissões Pagas</p>
             </CardContent>
           </Card>
           <Card>
@@ -310,12 +310,12 @@ export default function PartnerROIReportPage() {
                     }}
                     formatter={(value: number, name: string) => [
                       formatCurrency(value),
-                      name === 'revenue' ? 'Receita' : 'Comissão'
+                      name === 'revenue' ? 'Receita' : 'Comissão Paga'
                     ]}
                   />
                   <Legend />
                   <Bar dataKey="revenue" name="Receita" fill="#22c55e" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="commission" name="Comissão" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="commission" name="Comissão Paga" fill="#f59e0b" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -435,7 +435,7 @@ export default function PartnerROIReportPage() {
                     <th className="text-right py-3 px-4 font-medium">Receita</th>
                     <th className="text-right py-3 px-4 font-medium">Patrimônio</th>
                     <th className="text-center py-3 px-4 font-medium">Comissão %</th>
-                    <th className="text-right py-3 px-4 font-medium">Comissão Est.</th>
+                    <th className="text-right py-3 px-4 font-medium">Comissão Paga</th>
                     <th className="text-center py-3 px-4 font-medium">Crescimento</th>
                     <th className="text-center py-3 px-4 font-medium">ROI</th>
                   </tr>
@@ -470,7 +470,7 @@ export default function PartnerROIReportPage() {
                         {p.partner.commission_percentage}%
                       </td>
                       <td className="text-right py-3 px-4 text-amber-600 font-medium">
-                        {formatCurrency(p.estimatedCommission)}
+                        {formatCurrency(p.paidCommission)}
                       </td>
                       <td className="text-center py-3 px-4">
                         <div className={cn(

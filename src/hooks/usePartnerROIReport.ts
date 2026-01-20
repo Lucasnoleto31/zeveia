@@ -62,6 +62,34 @@ async function fetchAllRevenues(startDateStr: string) {
   return allData;
 }
 
+async function fetchAllPaidCommissions() {
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error } = await supabase
+      .from('partner_commissions')
+      .select('partner_id, amount')
+      .eq('status', 'paid')
+      .range(from, to);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+  return allData;
+}
+
 export interface PartnerROIMetrics {
   partner: Partner;
   clientCount: number;
@@ -69,8 +97,8 @@ export interface PartnerROIMetrics {
   totalRevenue: number;
   monthlyRevenue: number;
   totalPatrimony: number;
-  estimatedCommission: number;
-  roi: number; // Revenue / Commission ratio
+  paidCommission: number;
+  roi: number; // Revenue / Paid Commission ratio
   avgRevenuePerClient: number;
   revenueGrowth: number; // % change vs previous period
 }
@@ -146,6 +174,16 @@ export function usePartnerROIReport(options: PartnerROIReportOptions | number = 
       // Get revenues using batch fetching
       const revenues = await fetchAllRevenues(previousStartDate.toISOString().split('T')[0]);
 
+      // Get all paid commissions using batch fetching
+      const paidCommissions = await fetchAllPaidCommissions();
+
+      // Create paid commissions map by partner
+      const paidCommissionsByPartner = new Map<string, number>();
+      paidCommissions.forEach(c => {
+        const current = paidCommissionsByPartner.get(c.partner_id) || 0;
+        paidCommissionsByPartner.set(c.partner_id, current + Number(c.amount));
+      });
+
       // Create client to partner mapping
       const clientPartnerMap = new Map(clients?.map(c => [c.id, c.partner_id]) || []);
 
@@ -179,11 +217,11 @@ export function usePartnerROIReport(options: PartnerROIReportOptions | number = 
         // Patrimony
         const totalPatrimony = activeClients.reduce((sum, c) => sum + (c.patrimony || 0), 0);
 
-        // Commission
-        const estimatedCommission = totalRevenue * (partner.commission_percentage / 100);
+        // Paid commission from partner_commissions table
+        const paidCommission = paidCommissionsByPartner.get(partner.id) || 0;
 
-        // ROI (revenue per commission unit)
-        const roi = estimatedCommission > 0 ? totalRevenue / estimatedCommission : 0;
+        // ROI (revenue per paid commission unit)
+        const roi = paidCommission > 0 ? totalRevenue / paidCommission : 0;
 
         // Revenue growth
         const revenueGrowth = previousRevenue > 0 
@@ -197,7 +235,7 @@ export function usePartnerROIReport(options: PartnerROIReportOptions | number = 
           totalRevenue,
           monthlyRevenue,
           totalPatrimony,
-          estimatedCommission,
+          paidCommission,
           roi,
           avgRevenuePerClient: activeClients.length > 0 ? totalRevenue / activeClients.length : 0,
           revenueGrowth,
@@ -213,7 +251,7 @@ export function usePartnerROIReport(options: PartnerROIReportOptions | number = 
         clients: partnerMetrics.reduce((sum, p) => sum + p.clientCount, 0),
         revenue: partnerMetrics.reduce((sum, p) => sum + p.totalRevenue, 0),
         patrimony: partnerMetrics.reduce((sum, p) => sum + p.totalPatrimony, 0),
-        commissions: partnerMetrics.reduce((sum, p) => sum + p.estimatedCommission, 0),
+        commissions: partnerMetrics.reduce((sum, p) => sum + p.paidCommission, 0),
       };
 
       // Top partners
