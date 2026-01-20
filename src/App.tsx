@@ -19,6 +19,7 @@ import PartnerDetailPage from "./pages/PartnerDetailPage";
 import PlatformCostsPage from "./pages/PlatformCostsPage";
 import GoalsPage from "./pages/GoalsPage";
 import AlertsPage from "./pages/AlertsPage";
+import AgendaPage from "./pages/AgendaPage";
 import FunnelReportPage from "./pages/FunnelReportPage";
 import PerformanceReportPage from "./pages/PerformanceReportPage";
 import PartnerROIReportPage from "./pages/PartnerROIReportPage";
@@ -60,6 +61,7 @@ const App = () => (
               <Route path="/platforms" element={<ProtectedRoute><PlatformCostsPage /></ProtectedRoute>} />
               <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
               <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
+              <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
               <Route path="/reports/funnel" element={<ProtectedRoute><FunnelReportPage /></ProtectedRoute>} />
               <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReportPage /></ProtectedRoute>} />
               <Route path="/reports/roi" element={<ProtectedRoute><PartnerROIReportPage /></ProtectedRoute>} />

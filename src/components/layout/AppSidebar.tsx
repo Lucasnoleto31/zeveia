@@ -12,6 +12,7 @@ import {
   Target,
   Bell,
   BarChart3,
+  Calendar,
   Settings,
   ChevronDown,
 } from 'lucide-react';
@@ -50,6 +51,7 @@ const financialItems = [
 ];
 
 const managementItems = [
+  { title: 'Agenda', url: '/agenda', icon: Calendar },
   { title: 'Metas', url: '/goals', icon: Target },
   { title: 'Alertas', url: '/alerts', icon: Bell },
 ];
