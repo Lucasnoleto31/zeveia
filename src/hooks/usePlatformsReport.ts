@@ -256,23 +256,35 @@ export function usePlatformsReport(options: PlatformsReportOptions | number = 12
         stats.totalCost += Number(c.value);
       });
 
-      // Add lots traded from contracts
+      // Build lots by client map from contracts
+      const lotsByClient = new Map<string, number>();
       contractsData.forEach((c: any) => {
-        const platformId = c.platform_id;
-        if (platformMap.has(platformId)) {
-          platformMap.get(platformId)!.lotsTraded += Number(c.lots_traded);
+        if (c.client_id) {
+          lotsByClient.set(c.client_id, (lotsByClient.get(c.client_id) || 0) + Number(c.lots_traded || 0));
         }
       });
 
-      const platformStats: PlatformStats[] = Array.from(platformMap.values()).map(p => ({
-        id: p.id,
-        name: p.name,
-        clientCount: p.clients.size,
-        totalCost: p.totalCost,
-        avgCostPerClient: p.clients.size > 0 ? p.totalCost / p.clients.size : 0,
-        lotsTraded: p.lotsTraded,
-        costPerLot: p.lotsTraded > 0 ? p.totalCost / p.lotsTraded : 0,
-      })).sort((a, b) => b.totalCost - a.totalCost);
+      // Add lots traded - link by client_id (not platform_id since they're different platform types)
+      platformMap.forEach((stats) => {
+        let totalLots = 0;
+        stats.clients.forEach(clientId => {
+          totalLots += lotsByClient.get(clientId) || 0;
+        });
+        stats.lotsTraded = totalLots;
+      });
+
+      const platformStats: PlatformStats[] = Array.from(platformMap.values()).map(p => {
+        const absCost = Math.abs(p.totalCost);
+        return {
+          id: p.id,
+          name: p.name,
+          clientCount: p.clients.size,
+          totalCost: absCost,
+          avgCostPerClient: p.clients.size > 0 ? absCost / p.clients.size : 0,
+          lotsTraded: p.lotsTraded,
+          costPerLot: p.lotsTraded > 0 ? absCost / p.lotsTraded : 0,
+        };
+      }).sort((a, b) => b.totalCost - a.totalCost);
 
       // State stats
       const stateMap = new Map<string, {
@@ -314,7 +326,7 @@ export function usePlatformsReport(options: PlatformsReportOptions | number = 12
         
         return {
           state: s.state,
-          totalCost: s.totalCost,
+          totalCost: Math.abs(s.totalCost),
           clientCount: s.clients.size,
           topPlatform,
         };
@@ -371,7 +383,7 @@ export function usePlatformsReport(options: PlatformsReportOptions | number = 12
           name: p.name,
           platformCount: p.platforms.size,
           clientCount: p.clients.size,
-          totalCost: p.totalCost,
+          totalCost: Math.abs(p.totalCost),
           topPlatform,
         };
       }).sort((a, b) => b.totalCost - a.totalCost);
@@ -415,12 +427,13 @@ export function usePlatformsReport(options: PlatformsReportOptions | number = 12
       
       const monthlyEvolution: MonthlyEvolution[] = sortedMonths.map(month => {
         const stats = monthlyMap.get(month)!;
-        const growthPercent = prevCost > 0 ? ((stats.totalCost - prevCost) / prevCost) * 100 : 0;
-        prevCost = stats.totalCost;
+        const absCost = Math.abs(stats.totalCost);
+        const growthPercent = prevCost > 0 ? ((absCost - prevCost) / prevCost) * 100 : 0;
+        prevCost = absCost;
         
         return {
           month,
-          totalCost: stats.totalCost,
+          totalCost: absCost,
           clientCount: stats.clients.size,
           growthPercent,
         };
@@ -459,13 +472,16 @@ export function usePlatformsReport(options: PlatformsReportOptions | number = 12
       });
 
       const topClientsByCost: ClientRanking[] = Array.from(clientCostMap.values())
-        .map(c => ({
-          id: c.id,
-          name: c.name,
-          totalCost: c.totalCost,
-          platformCount: c.platforms.size,
-          avgCostPerPlatform: c.platforms.size > 0 ? c.totalCost / c.platforms.size : 0,
-        }))
+        .map(c => {
+          const absCost = Math.abs(c.totalCost);
+          return {
+            id: c.id,
+            name: c.name,
+            totalCost: absCost,
+            platformCount: c.platforms.size,
+            avgCostPerPlatform: c.platforms.size > 0 ? absCost / c.platforms.size : 0,
+          };
+        })
         .sort((a, b) => b.totalCost - a.totalCost)
         .slice(0, 10);
 
@@ -515,18 +531,19 @@ export function usePlatformsReport(options: PlatformsReportOptions | number = 12
           }
         });
         
+        const absCost = Math.abs(a.totalCost);
         return {
           id,
           name: profilesMap.get(id) || 'Assessor desconhecido',
           clientCount: a.clients.size,
-          totalCost: a.totalCost,
-          avgCostPerClient: a.clients.size > 0 ? a.totalCost / a.clients.size : 0,
+          totalCost: absCost,
+          avgCostPerClient: a.clients.size > 0 ? absCost / a.clients.size : 0,
           topPlatform,
         };
       }).sort((a, b) => b.totalCost - a.totalCost);
 
-      // Summary calculations
-      const totalCost = costs.reduce((sum, c: any) => sum + Number(c.value), 0);
+      // Summary calculations (use absolute value since costs are credits/negative)
+      const totalCost = Math.abs(costs.reduce((sum, c: any) => sum + Number(c.value), 0));
       const totalPlatforms = platformMap.size;
       const avgMonthlyCost = monthlyEvolution.length > 0 
         ? totalCost / monthlyEvolution.length 
