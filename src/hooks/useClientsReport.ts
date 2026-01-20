@@ -248,13 +248,16 @@ export function useClientsReport(options: ClientsReportOptions | number = 12) {
         .sort((a, b) => b.count - a.count)
         .slice(0, 10);
       
-      // Average monthly contract volume
-      const contractVolumeMap = new Map<string, number[]>();
+      // Average monthly contract volume PER CLIENT
+      const monthlyContractData = new Map<string, { totalLots: number; clients: Set<string> }>();
       contracts?.forEach(c => {
-        const monthKey = c.date.slice(0, 7);
-        const existing = contractVolumeMap.get(monthKey) || [];
-        existing.push(c.lots_traded);
-        contractVolumeMap.set(monthKey, existing);
+        if (c.client_id) {
+          const monthKey = c.date.slice(0, 7);
+          const existing = monthlyContractData.get(monthKey) || { totalLots: 0, clients: new Set<string>() };
+          existing.totalLots += (c.lots_traded || 0);
+          existing.clients.add(c.client_id);
+          monthlyContractData.set(monthKey, existing);
+        }
       });
       
       const avgContractVolume: { month: string; volume: number }[] = [];
@@ -262,8 +265,10 @@ export function useClientsReport(options: ClientsReportOptions | number = 12) {
         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const monthKey = date.toISOString().slice(0, 7);
         const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short' });
-        const lots = contractVolumeMap.get(monthKey) || [];
-        const avgVolume = lots.length > 0 ? lots.reduce((a, b) => a + b, 0) / lots.length : 0;
+        const data = monthlyContractData.get(monthKey);
+        const avgVolume = data && data.clients.size > 0 
+          ? data.totalLots / data.clients.size 
+          : 0;
         avgContractVolume.push({ month: monthLabel, volume: Math.round(avgVolume) });
       }
       
