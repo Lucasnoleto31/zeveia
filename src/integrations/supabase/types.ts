@@ -887,6 +887,75 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          assignee_id: string
+          client_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string
+          id: string
+          lead_id: string | null
+          priority: string
+          reminder_at: string | null
+          status: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id: string
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date: string
+          id?: string
+          lead_id?: string | null
+          priority?: string
+          reminder_at?: string | null
+          status?: string
+          title: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string
+          id?: string
+          lead_id?: string | null
+          priority?: string
+          reminder_at?: string | null
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
