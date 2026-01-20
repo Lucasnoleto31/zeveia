@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   ArrowLeft, 
   User, 
@@ -28,8 +29,15 @@ import {
   Percent,
   CreditCard,
   ExternalLink,
-  FileText
+  FileText,
+  ListTodo,
+  Plus,
+  CheckCircle2
 } from 'lucide-react';
+import { useTasks } from '@/hooks/useTasks';
+import { TaskCard } from '@/components/tasks/TaskCard';
+import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
+import { TaskWithRelations } from '@/types/tasks';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -97,6 +105,12 @@ export default function ClientDetailPage() {
   
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<TaskWithRelations | null>(null);
+  
+  const { data: tasks, isLoading: tasksLoading } = useTasks({ client_id: id });
+  const pendingTasks = tasks?.filter(t => t.status !== 'concluida' && t.status !== 'cancelada') || [];
+  const completedTasks = tasks?.filter(t => t.status === 'concluida') || [];
 
   const formatCurrency = (value?: number) => {
     if (!value) return 'R$ 0,00';
@@ -780,7 +794,63 @@ export default function ClientDetailPage() {
           </Card>
         </div>
 
-        {/* Fourth Row - Interactions Timeline */}
+        {/* Fourth Row - Tasks Section */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ListTodo className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle>Tarefas Agendadas</CardTitle>
+                <CardDescription>
+                  {pendingTasks.length} tarefa(s) pendente(s)
+                </CardDescription>
+              </div>
+              {pendingTasks.length > 0 && (
+                <Badge variant="secondary">{pendingTasks.length}</Badge>
+              )}
+            </div>
+            <Button size="sm" onClick={() => { setEditingTask(null); setTaskDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Tarefa
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {tasksLoading ? (
+              <Skeleton className="h-20" />
+            ) : pendingTasks.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-4">
+                Nenhuma tarefa pendente para este cliente
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pendingTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    compact
+                    onEdit={(t) => { setEditingTask(t); setTaskDialogOpen(true); }}
+                  />
+                ))}
+              </div>
+            )}
+            
+            {completedTasks.length > 0 && (
+              <Collapsible className="mt-4">
+                <CollapsibleTrigger className="text-sm text-muted-foreground hover:underline flex items-center gap-1">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {completedTasks.length} tarefa(s) concluída(s)
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 mt-2">
+                  {completedTasks.slice(0, 5).map((task) => (
+                    <TaskCard key={task.id} task={task} compact />
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Fifth Row - Interactions Timeline */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
@@ -848,6 +918,12 @@ export default function ClientDetailPage() {
         open={interactionDialogOpen}
         onOpenChange={setInteractionDialogOpen}
         clientId={client.id}
+      />
+      <TaskFormDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        task={editingTask}
+        defaultClientId={id}
       />
     </MainLayout>
   );

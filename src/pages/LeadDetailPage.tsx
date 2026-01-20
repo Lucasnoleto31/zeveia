@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   Circle,
   Handshake,
-  Trash2
+  Trash2,
+  ListTodo
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,8 +33,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useLead, useLeadMetrics, useUpdateLead, useDeleteLead } from '@/hooks/useLeads';
 import { useProfiles } from '@/hooks/useProfiles';
+import { useTasks } from '@/hooks/useTasks';
+import { TaskCard } from '@/components/tasks/TaskCard';
+import { TaskFormDialog } from '@/components/tasks/TaskFormDialog';
+import { TaskWithRelations } from '@/types/tasks';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,6 +119,12 @@ export default function LeadDetailPage() {
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [lostDialogOpen, setLostDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<TaskWithRelations | null>(null);
+  
+  const { data: tasks, isLoading: tasksLoading } = useTasks({ lead_id: id });
+  const pendingTasks = tasks?.filter(t => t.status !== 'concluida' && t.status !== 'cancelada') || [];
+  const completedTasks = tasks?.filter(t => t.status === 'concluida') || [];
 
   const handleDeleteLead = async () => {
     try {
@@ -468,6 +480,57 @@ export default function LeadDetailPage() {
           </Card>
         </div>
 
+        {/* Tasks Section */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ListTodo className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-lg">Tarefas Agendadas</CardTitle>
+              {pendingTasks.length > 0 && (
+                <Badge variant="secondary">{pendingTasks.length}</Badge>
+              )}
+            </div>
+            <Button size="sm" onClick={() => { setEditingTask(null); setTaskDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Tarefa
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {tasksLoading ? (
+              <Skeleton className="h-20" />
+            ) : pendingTasks.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-4">
+                Nenhuma tarefa pendente para este lead
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pendingTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    compact
+                    onEdit={(t) => { setEditingTask(t); setTaskDialogOpen(true); }}
+                  />
+                ))}
+              </div>
+            )}
+            
+            {completedTasks.length > 0 && (
+              <Collapsible className="mt-4">
+                <CollapsibleTrigger className="text-sm text-muted-foreground hover:underline flex items-center gap-1">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {completedTasks.length} tarefa(s) concluída(s)
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 mt-2">
+                  {completedTasks.slice(0, 5).map((task) => (
+                    <TaskCard key={task.id} task={task} compact />
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Interactions Timeline */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -572,6 +635,13 @@ export default function LeadDetailPage() {
         open={lostDialogOpen}
         onOpenChange={setLostDialogOpen}
         lead={lead}
+      />
+
+      <TaskFormDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        task={editingTask}
+        defaultLeadId={id}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
