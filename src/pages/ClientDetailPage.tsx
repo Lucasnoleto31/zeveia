@@ -32,7 +32,8 @@ import {
   FileText,
   ListTodo,
   Plus,
-  CheckCircle2
+  CheckCircle2,
+  Target
 } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { TaskCard } from '@/components/tasks/TaskCard';
@@ -57,6 +58,8 @@ import {
 } from 'recharts';
 import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import { InteractionFormDialog } from '@/components/clients/InteractionFormDialog';
+import { CreateOpportunityDialog } from '@/components/clients/CreateOpportunityDialog';
+import { OpportunitiesHistory } from '@/components/clients/OpportunitiesHistory';
 
 const profileEmojis: Record<string, string> = {
   conservador: '🛡️',
@@ -106,6 +109,7 @@ export default function ClientDetailPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [opportunityDialogOpen, setOpportunityDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskWithRelations | null>(null);
   
   const { data: tasks, isLoading: tasksLoading } = useTasks({ client_id: id });
@@ -172,6 +176,10 @@ export default function ClientDetailPage() {
             Voltar
           </Button>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setOpportunityDialogOpen(true)} className="gap-2">
+              <Target className="h-4 w-4" />
+              Nova Oportunidade
+            </Button>
             <Button variant="outline" onClick={() => setInteractionDialogOpen(true)} className="gap-2">
               <MessageCircle className="h-4 w-4" />
               Nova Interação
@@ -850,7 +858,13 @@ export default function ClientDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Fifth Row - Interactions Timeline */}
+        {/* Fifth Row - Opportunities History */}
+        <OpportunitiesHistory 
+          clientId={client.id} 
+          onCreateOpportunity={() => setOpportunityDialogOpen(true)}
+        />
+
+        {/* Sixth Row - Interactions Timeline */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
@@ -924,6 +938,12 @@ export default function ClientDetailPage() {
         onOpenChange={setTaskDialogOpen}
         task={editingTask}
         defaultClientId={id}
+      />
+      <CreateOpportunityDialog
+        open={opportunityDialogOpen}
+        onOpenChange={setOpportunityDialogOpen}
+        client={client}
+        unusedProducts={metrics?.unusedProducts}
       />
     </MainLayout>
   );
