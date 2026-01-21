@@ -112,15 +112,16 @@ export function LeadFilters({ filters, onFiltersChange, showAssessorFilter }: Le
       {/* Assessor Filter (only for socio) */}
       {showAssessorFilter && (
         <Select
-          value={filters.assessorId || "all"}
+          value={filters.assessorId || "mine"}
           onValueChange={(value) => 
-            onFiltersChange({ ...filters, assessorId: value === "all" ? undefined : value })
+            onFiltersChange({ ...filters, assessorId: value === "mine" ? undefined : value })
           }
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Assessor" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="mine">Meus Leads</SelectItem>
             <SelectItem value="all">Todos assessores</SelectItem>
             {assessors?.map((assessor) => (
               <SelectItem key={assessor.user_id} value={assessor.user_id}>
