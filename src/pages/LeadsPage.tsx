@@ -54,7 +54,9 @@ export default function LeadsPage() {
     originId: filters.originId,
     campaignId: filters.campaignId,
     partnerId: filters.partnerId,
-    assessorId: isSocio ? filters.assessorId : user?.id,
+    assessorId: isSocio 
+      ? (filters.assessorId === 'all' ? undefined : (filters.assessorId || user?.id))
+      : user?.id,
   });
 
   const updateLead = useUpdateLead();
