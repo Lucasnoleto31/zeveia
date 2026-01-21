@@ -162,6 +162,24 @@ export function usePendingTasksCount() {
   });
 }
 
+// Count today's and overdue tasks for header badge
+export function useTodayAndOverdueTasksCount() {
+  return useQuery({
+    queryKey: ['tasks', 'today-overdue-count'],
+    queryFn: async () => {
+      const todayEnd = endOfDay(new Date());
+      const { count, error } = await supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .lte('due_date', todayEnd.toISOString())
+        .in('status', ['pendente', 'em_andamento']);
+
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+}
+
 // Create task mutation
 export function useCreateTask() {
   const queryClient = useQueryClient();
