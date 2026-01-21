@@ -107,12 +107,18 @@ export interface Lead {
   updated_at: string;
   updated_by?: string;
   converted_at?: string;
+  lost_at?: string;
+  // Opportunity fields
+  client_id?: string;
+  target_product_id?: string;
   // Relations
   origin?: Origin;
   campaign?: Campaign;
   partner?: Partner;
   loss_reason?: LossReason;
   assessor?: Profile;
+  client?: Client;
+  target_product?: Product;
 }
 
 export interface Client {

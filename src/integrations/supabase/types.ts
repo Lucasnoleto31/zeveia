@@ -464,6 +464,7 @@ export type Database = {
         Row: {
           assessor_id: string
           campaign_id: string | null
+          client_id: string | null
           converted_at: string | null
           created_at: string
           email: string | null
@@ -477,12 +478,14 @@ export type Database = {
           phone: string | null
           state: string | null
           status: Database["public"]["Enums"]["lead_status"]
+          target_product_id: string | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           assessor_id: string
           campaign_id?: string | null
+          client_id?: string | null
           converted_at?: string | null
           created_at?: string
           email?: string | null
@@ -496,12 +499,14 @@ export type Database = {
           phone?: string | null
           state?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
+          target_product_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           assessor_id?: string
           campaign_id?: string | null
+          client_id?: string | null
           converted_at?: string | null
           created_at?: string
           email?: string | null
@@ -515,6 +520,7 @@ export type Database = {
           phone?: string | null
           state?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
+          target_product_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -524,6 +530,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
           {
@@ -545,6 +558,13 @@ export type Database = {
             columns: ["partner_id"]
             isOneToOne: false
             referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_target_product_id_fkey"
+            columns: ["target_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
