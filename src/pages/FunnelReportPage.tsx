@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { format } from 'date-fns';
+import { useState, useMemo } from 'react';
+import { format, parseISO } from 'date-fns';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,11 +19,12 @@ import {
   Line,
 } from 'recharts';
 import { Download, Loader2, TrendingUp, Users, Trophy, Clock, CalendarDays } from 'lucide-react';
-import { useFunnelReport } from '@/hooks/useFunnelReport';
+import { useFunnelReport, LeadWithDetails } from '@/hooks/useFunnelReport';
 import { FunnelChart } from '@/components/reports/FunnelChart';
 import { ConversionRateCard } from '@/components/reports/ConversionRateCard';
 import { PeriodFilter, getPeriodLabel } from '@/components/reports/PeriodFilter';
 import { LeadsCalendarView } from '@/components/reports/LeadsCalendarView';
+import { DayLeadsDetailDialog } from '@/components/reports/DayLeadsDetailDialog';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -43,6 +44,8 @@ export default function FunnelReportPage() {
   const [months, setMonths] = useState(6);
   const [customStartDate, setCustomStartDate] = useState<Date>();
   const [customEndDate, setCustomEndDate] = useState<Date>();
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   
   const { data, isLoading } = useFunnelReport(
     periodType === 'custom' && customStartDate && customEndDate
@@ -51,6 +54,40 @@ export default function FunnelReportPage() {
   );
 
   const periodLabel = getPeriodLabel(periodType, months, customStartDate, customEndDate);
+
+  // Get leads for selected date
+  const selectedDateLeads = useMemo(() => {
+    if (!selectedDate || !data?.allLeadsWithDetails) {
+      return { created: [], converted: [], lost: [] };
+    }
+
+    const dateKey = format(selectedDate, 'yyyy-MM-dd');
+    const allLeads = data.allLeadsWithDetails;
+
+    const created = allLeads.filter((lead) => {
+      const leadDate = format(parseISO(lead.created_at), 'yyyy-MM-dd');
+      return leadDate === dateKey;
+    });
+
+    const converted = allLeads.filter((lead) => {
+      if (lead.status !== 'convertido' || !lead.converted_at) return false;
+      const convDate = format(parseISO(lead.converted_at), 'yyyy-MM-dd');
+      return convDate === dateKey;
+    });
+
+    const lost = allLeads.filter((lead) => {
+      if (lead.status !== 'perdido' || !lead.updated_at) return false;
+      const lostDate = format(parseISO(lead.updated_at), 'yyyy-MM-dd');
+      return lostDate === dateKey;
+    });
+
+    return { created, converted, lost };
+  }, [selectedDate, data?.allLeadsWithDetails]);
+
+  const handleSelectDate = (date: Date) => {
+    setSelectedDate(date);
+    setIsDetailDialogOpen(true);
+  };
 
   const exportToPDF = () => {
     if (!data) return;
@@ -246,9 +283,21 @@ export default function FunnelReportPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <LeadsCalendarView dailyMetrics={data.leadsByDay} />
+            <LeadsCalendarView 
+              dailyMetrics={data.leadsByDay} 
+              onSelectDate={handleSelectDate}
+              selectedDate={selectedDate || undefined}
+            />
           </CardContent>
         </Card>
+
+        {/* Day Leads Detail Dialog */}
+        <DayLeadsDetailDialog
+          open={isDetailDialogOpen}
+          onOpenChange={setIsDetailDialogOpen}
+          date={selectedDate}
+          leads={selectedDateLeads}
+        />
 
         {/* Secondary Charts */}
         <div className="grid lg:grid-cols-3 gap-6">
