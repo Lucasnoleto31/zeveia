@@ -60,7 +60,7 @@ export interface FunnelMetrics {
   avgConversionDays: number;
   leadsByMonth: { month: string; novo: number; convertido: number; perdido: number }[];
   leadsByOrigin: { origin: string; count: number }[];
-  leadsByCampaign: { campaign: string; count: number }[];
+  leadsByCampaign: { campaign: string; total: number; converted: number; lost: number; rate: number }[];
   leadsByAssessor: { assessor: string; count: number; converted: number; rate: number }[];
   lossReasons: { reason: string; count: number }[];
   cohortData: CohortData[];
@@ -237,15 +237,26 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         .sort((a, b) => b.count - a.count)
         .slice(0, 10);
 
-      // Leads by campaign
-      const campaignCounts: Record<string, number> = {};
+      // Leads by campaign with conversion data
+      const campaignData: Record<string, { total: number; converted: number; lost: number }> = {};
       allLeads.forEach((lead) => {
         const campaign = lead.campaign?.name || 'Sem campanha';
-        campaignCounts[campaign] = (campaignCounts[campaign] || 0) + 1;
+        if (!campaignData[campaign]) {
+          campaignData[campaign] = { total: 0, converted: 0, lost: 0 };
+        }
+        campaignData[campaign].total++;
+        if (lead.status === 'convertido') campaignData[campaign].converted++;
+        if (lead.status === 'perdido') campaignData[campaign].lost++;
       });
-      const leadsByCampaign = Object.entries(campaignCounts)
-        .map(([campaign, count]) => ({ campaign, count }))
-        .sort((a, b) => b.count - a.count)
+      const leadsByCampaign = Object.entries(campaignData)
+        .map(([campaign, d]) => ({
+          campaign,
+          total: d.total,
+          converted: d.converted,
+          lost: d.lost,
+          rate: d.total > 0 ? (d.converted / d.total) * 100 : 0,
+        }))
+        .sort((a, b) => b.total - a.total)
         .slice(0, 10);
 
       // Leads by assessor with conversion rate

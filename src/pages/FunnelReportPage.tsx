@@ -338,14 +338,14 @@ export default function FunnelReportPage() {
             </CardContent>
           </Card>
 
-          {/* By Campaign */}
+          {/* Campaign Success */}
           <Card>
             <CardHeader>
-              <CardTitle>Leads por Campanha</CardTitle>
+              <CardTitle>Sucesso por Campanha</CardTitle>
             </CardHeader>
             <CardContent>
               {data.leadsByCampaign.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={data.leadsByCampaign} layout="vertical">
                     <XAxis type="number" className="text-xs" />
                     <YAxis dataKey="campaign" type="category" width={100} className="text-xs" />
@@ -355,8 +355,19 @@ export default function FunnelReportPage() {
                         borderColor: 'hsl(var(--border))',
                         borderRadius: '8px',
                       }}
+                      formatter={(value: number, name: string, props: any) => {
+                        if (name === 'Taxa') return [`${value.toFixed(1)}%`, name];
+                        return [value, name];
+                      }}
+                      labelFormatter={(label) => {
+                        const item = data.leadsByCampaign.find((c) => c.campaign === label);
+                        return item ? `${label} (Taxa: ${item.rate.toFixed(1)}%)` : label;
+                      }}
                     />
-                    <Bar dataKey="count" name="Leads" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                    <Legend />
+                    <Bar dataKey="total" name="Total" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="converted" name="Convertidos" fill="#22c55e" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="lost" name="Perdidos" fill="#ef4444" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
