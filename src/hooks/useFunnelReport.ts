@@ -30,6 +30,20 @@ export interface CohortData {
   avgTimeToConvert: number | null;
 }
 
+export interface LeadWithDetails {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  status: string;
+  created_at: string;
+  converted_at?: string | null;
+  updated_at: string;
+  origin?: { name: string } | null;
+  campaign?: { name: string } | null;
+  assessor?: { name: string } | null;
+}
+
 export interface DailyLeadMetrics {
   date: string;          // 'yyyy-MM-dd'
   created: number;       // Leads created on this day
@@ -53,6 +67,7 @@ export interface FunnelMetrics {
   bestCohort: { cohort: string; rate: number } | null;
   avgRetentionAt3Months: number;
   leadsByDay: DailyLeadMetrics[];
+  allLeadsWithDetails: LeadWithDetails[];
 }
 
 const stageConfig: Record<LeadStatus, { label: string; color: string; order: number }> = {
@@ -424,6 +439,7 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         bestCohort,
         avgRetentionAt3Months,
         leadsByDay,
+        allLeadsWithDetails: allLeads as LeadWithDetails[],
       };
     },
   });
