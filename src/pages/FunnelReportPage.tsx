@@ -361,7 +361,7 @@ export default function FunnelReportPage() {
                       }}
                       labelFormatter={(label) => {
                         const item = data.leadsByCampaign.find((c) => c.campaign === label);
-                        return item ? `${label} (Taxa: ${item.rate.toFixed(1)}%)` : label;
+                        return item ? `${label} (Taxa: ${item.rate.toFixed(1)}%)` : String(label);
                       }}
                     />
                     <Legend />
