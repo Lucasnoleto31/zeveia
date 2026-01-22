@@ -18,11 +18,12 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { Download, Loader2, TrendingUp, Users, Trophy, Clock } from 'lucide-react';
+import { Download, Loader2, TrendingUp, Users, Trophy, Clock, CalendarDays } from 'lucide-react';
 import { useFunnelReport } from '@/hooks/useFunnelReport';
 import { FunnelChart } from '@/components/reports/FunnelChart';
 import { ConversionRateCard } from '@/components/reports/ConversionRateCard';
 import { PeriodFilter, getPeriodLabel } from '@/components/reports/PeriodFilter';
+import { LeadsCalendarView } from '@/components/reports/LeadsCalendarView';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -235,6 +236,19 @@ export default function FunnelReportPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Daily Performance Calendar */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              Performance Diária
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LeadsCalendarView dailyMetrics={data.leadsByDay} />
+          </CardContent>
+        </Card>
 
         {/* Secondary Charts */}
         <div className="grid lg:grid-cols-3 gap-6">

@@ -30,6 +30,13 @@ export interface CohortData {
   avgTimeToConvert: number | null;
 }
 
+export interface DailyLeadMetrics {
+  date: string;          // 'yyyy-MM-dd'
+  created: number;       // Leads created on this day
+  converted: number;     // Leads converted on this day
+  lost: number;          // Leads lost on this day
+}
+
 export interface FunnelMetrics {
   stages: FunnelStage[];
   totalLeads: number;
@@ -45,6 +52,7 @@ export interface FunnelMetrics {
   cohortData: CohortData[];
   bestCohort: { cohort: string; rate: number } | null;
   avgRetentionAt3Months: number;
+  leadsByDay: DailyLeadMetrics[];
 }
 
 const stageConfig: Record<LeadStatus, { label: string; color: string; order: number }> = {
@@ -364,6 +372,42 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         ? cohortsWithMonth3.reduce((sum, c) => sum + (c.retention[3]?.activeRate || 0), 0) / cohortsWithMonth3.length
         : 0;
 
+      // Aggregate leads by day for daily calendar view
+      const leadsByDayMap = new Map<string, { created: number; converted: number; lost: number }>();
+
+      allLeads.forEach((lead) => {
+        // Count created leads by day
+        const createdKey = format(parseISO(lead.created_at), 'yyyy-MM-dd');
+        const existingCreated = leadsByDayMap.get(createdKey) || { created: 0, converted: 0, lost: 0 };
+        existingCreated.created++;
+        leadsByDayMap.set(createdKey, existingCreated);
+
+        // Count converted leads by conversion date
+        if (lead.status === 'convertido' && lead.converted_at) {
+          const convertedKey = format(parseISO(lead.converted_at), 'yyyy-MM-dd');
+          const existingConverted = leadsByDayMap.get(convertedKey) || { created: 0, converted: 0, lost: 0 };
+          existingConverted.converted++;
+          leadsByDayMap.set(convertedKey, existingConverted);
+        }
+
+        // Count lost leads by updated_at (as proxy for loss date)
+        if (lead.status === 'perdido' && lead.updated_at) {
+          const lostKey = format(parseISO(lead.updated_at), 'yyyy-MM-dd');
+          const existingLost = leadsByDayMap.get(lostKey) || { created: 0, converted: 0, lost: 0 };
+          existingLost.lost++;
+          leadsByDayMap.set(lostKey, existingLost);
+        }
+      });
+
+      const leadsByDay: DailyLeadMetrics[] = Array.from(leadsByDayMap.entries())
+        .map(([date, metrics]) => ({
+          date,
+          created: metrics.created,
+          converted: metrics.converted,
+          lost: metrics.lost,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
       return {
         stages,
         totalLeads,
@@ -379,6 +423,7 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         cohortData,
         bestCohort,
         avgRetentionAt3Months,
+        leadsByDay,
       };
     },
   });
