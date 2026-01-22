@@ -36,13 +36,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Pencil, Loader2, Search, Shield, User, Crown } from 'lucide-react';
+import { Pencil, Loader2, Search, Shield, User, Crown, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   useProfilesWithRoles, 
   useUpdateUserRole, 
   useUpdateProfile,
+  useDeleteUser,
   ProfileWithRole 
 } from '@/hooks/useProfiles';
 import { AppRole } from '@/types/database';
@@ -51,10 +52,11 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function UserManagement() {
-  const { user } = useAuth();
+  const { user, isSocio } = useAuth();
   const [search, setSearch] = useState('');
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isRoleChangeOpen, setIsRoleChangeOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ProfileWithRole | null>(null);
   const [editName, setEditName] = useState('');
   const [newRole, setNewRole] = useState<AppRole>('assessor');
@@ -62,6 +64,7 @@ export function UserManagement() {
   const { data: users = [], isLoading } = useProfilesWithRoles();
   const updateRole = useUpdateUserRole();
   const updateProfile = useUpdateProfile();
+  const deleteUser = useDeleteUser();
 
   const filteredUsers = users.filter(
     (u) =>
@@ -103,6 +106,23 @@ export function UserManagement() {
     setSelectedUser(userProfile);
     setNewRole(userProfile.role);
     setIsRoleChangeOpen(true);
+  };
+
+  const openDelete = (userProfile: ProfileWithRole) => {
+    setSelectedUser(userProfile);
+    setIsDeleteOpen(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    try {
+      await deleteUser.mutateAsync(selectedUser.user_id);
+      toast.success('Usuário excluído com sucesso');
+      setIsDeleteOpen(false);
+      setSelectedUser(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao excluir usuário');
+    }
   };
 
   const getRoleIcon = (role: AppRole) => {
@@ -224,13 +244,25 @@ export function UserManagement() {
                       {format(new Date(userProfile.created_at), "dd/MM/yyyy", { locale: ptBR })}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(userProfile)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(userProfile)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        {isSocio && !isCurrentUser && !isLastSocio && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openDelete(userProfile)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -345,6 +377,41 @@ export function UserManagement() {
             >
               {updateRole.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirmar Alteração
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete User Dialog */}
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Excluir Usuário
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  Tem certeza que deseja excluir o usuário <strong>{selectedUser?.name}</strong>?
+                </p>
+                <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                  <p className="text-sm text-destructive">
+                    ⚠️ Esta ação é irreversível. O usuário perderá acesso ao sistema e todos os dados associados serão desvinculados.
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={deleteUser.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteUser.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Excluir Usuário
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
