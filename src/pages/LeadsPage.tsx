@@ -17,7 +17,7 @@ import { KanbanColumn } from '@/components/leads/KanbanColumn';
 import { LeadCard } from '@/components/leads/LeadCard';
 import { LeadFilters } from '@/components/leads/LeadFilters';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
-import { useLeads, useUpdateLead } from '@/hooks/useLeads';
+import { useLeads, useUpdateLead, LeadType } from '@/hooks/useLeads';
 import { useAuth } from '@/contexts/AuthContext';
 import { Lead, LeadStatus } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -39,11 +39,12 @@ interface LeadFiltersState {
   campaignId?: string;
   partnerId?: string;
   assessorId?: string;
+  leadType?: LeadType;
 }
 
 export default function LeadsPage() {
   const { user, isSocio } = useAuth();
-  const [filters, setFilters] = useState<LeadFiltersState>({ search: '' });
+  const [filters, setFilters] = useState<LeadFiltersState>({ search: '', leadType: 'all' });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -57,6 +58,7 @@ export default function LeadsPage() {
     assessorId: isSocio 
       ? (filters.assessorId === 'all' ? undefined : (filters.assessorId || user?.id))
       : user?.id,
+    leadType: filters.leadType,
   });
 
   const updateLead = useUpdateLead();

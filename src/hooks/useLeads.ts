@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Lead, LeadStatus } from '@/types/database';
 import { differenceInDays } from 'date-fns';
 
+export type LeadType = 'all' | 'new' | 'opportunity';
+
 interface LeadFilters {
   search?: string;
   status?: LeadStatus;
@@ -12,6 +14,7 @@ interface LeadFilters {
   partnerId?: string;
   startDate?: string;
   endDate?: string;
+  leadType?: LeadType;
 }
 
 // Batch fetch all leads to overcome 1000 record limit
@@ -67,6 +70,13 @@ async function fetchAllLeadsWithRelations(filters?: LeadFilters) {
 
     if (filters?.endDate) {
       query = query.lte('created_at', filters.endDate);
+    }
+
+    // Filter by lead type (new leads vs opportunities)
+    if (filters?.leadType === 'new') {
+      query = query.is('client_id', null);
+    } else if (filters?.leadType === 'opportunity') {
+      query = query.not('client_id', 'is', null);
     }
 
     const { data, error } = await query;
