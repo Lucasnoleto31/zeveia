@@ -9,8 +9,9 @@ import {
 import { useOrigins, useCampaigns } from '@/hooks/useConfiguration';
 import { usePartners } from '@/hooks/usePartners';
 import { useAssessors } from '@/hooks/useProfiles';
-import { Search, X } from 'lucide-react';
+import { Search, X, Users, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LeadType } from '@/hooks/useLeads';
 
 interface LeadFiltersProps {
   filters: {
@@ -19,6 +20,7 @@ interface LeadFiltersProps {
     campaignId?: string;
     partnerId?: string;
     assessorId?: string;
+    leadType?: LeadType;
   };
   onFiltersChange: (filters: any) => void;
   showAssessorFilter?: boolean;
@@ -30,14 +32,46 @@ export function LeadFilters({ filters, onFiltersChange, showAssessorFilter }: Le
   const { data: partners } = usePartners({ active: true });
   const { data: assessors } = useAssessors();
 
-  const hasActiveFilters = filters.search || filters.originId || filters.campaignId || filters.partnerId || filters.assessorId;
+  const hasActiveFilters = filters.search || filters.originId || filters.campaignId || filters.partnerId || filters.assessorId || (filters.leadType && filters.leadType !== 'all');
 
   const clearFilters = () => {
-    onFiltersChange({ search: '' });
+    onFiltersChange({ search: '', leadType: 'all' });
   };
 
   return (
     <div className="flex flex-wrap gap-2 items-center">
+      {/* Lead Type Filter */}
+      <Select
+        value={filters.leadType || "all"}
+        onValueChange={(value) => 
+          onFiltersChange({ ...filters, leadType: value as LeadType })
+        }
+      >
+        <SelectTrigger className="w-44">
+          <SelectValue placeholder="Tipo" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">
+            <span className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Todos os Leads
+            </span>
+          </SelectItem>
+          <SelectItem value="new">
+            <span className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Leads Novos
+            </span>
+          </SelectItem>
+          <SelectItem value="opportunity">
+            <span className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-accent-foreground" />
+              Oportunidades
+            </span>
+          </SelectItem>
+        </SelectContent>
+      </Select>
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
