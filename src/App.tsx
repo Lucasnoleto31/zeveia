@@ -21,6 +21,7 @@ import GoalsPage from "./pages/GoalsPage";
 import AlertsPage from "./pages/AlertsPage";
 import AgendaPage from "./pages/AgendaPage";
 import FunnelReportPage from "./pages/FunnelReportPage";
+import OpportunitiesReportPage from "./pages/OpportunitiesReportPage";
 import PerformanceReportPage from "./pages/PerformanceReportPage";
 import PartnerROIReportPage from "./pages/PartnerROIReportPage";
 import ClientsReportPage from "./pages/ClientsReportPage";
@@ -63,6 +64,7 @@ const App = () => (
               <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
               <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
               <Route path="/reports/funnel" element={<ProtectedRoute><FunnelReportPage /></ProtectedRoute>} />
+              <Route path="/reports/opportunities" element={<ProtectedRoute><OpportunitiesReportPage /></ProtectedRoute>} />
               <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReportPage /></ProtectedRoute>} />
               <Route path="/reports/roi" element={<ProtectedRoute><PartnerROIReportPage /></ProtectedRoute>} />
               <Route path="/reports/clients" element={<ProtectedRoute><ClientsReportPage /></ProtectedRoute>} />

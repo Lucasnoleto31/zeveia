@@ -58,6 +58,7 @@ const managementItems = [
 
 const reportItems = [
   { title: 'Leads', url: '/reports/funnel', icon: BarChart3 },
+  { title: 'Oportunidades', url: '/reports/opportunities', icon: BarChart3 },
   { title: 'Assessores', url: '/reports/performance', icon: BarChart3 },
   { title: 'Parceiros', url: '/reports/roi', icon: BarChart3 },
   { title: 'Clientes', url: '/reports/clients', icon: BarChart3 },
