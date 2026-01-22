@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile, AppRole } from '@/types/database';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface ProfileWithRole extends Profile {
   role: AppRole;
@@ -176,6 +177,45 @@ export function useUpdateProfile() {
       
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['profiles-with-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['assessors'] });
+    },
+  });
+}
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+  const { isSocio } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      if (!isSocio) {
+        throw new Error('Apenas sócios podem excluir usuários');
+      }
+
+      // Delete user role first
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
+      
+      if (roleError) throw roleError;
+
+      // Delete profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', userId);
+      
+      if (profileError) throw profileError;
+
+      // Note: The auth.users record cannot be deleted from client-side
+      // It will remain but the user won't have access without profile/role
+      
+      return { success: true };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
