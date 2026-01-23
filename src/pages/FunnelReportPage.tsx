@@ -149,15 +149,16 @@ export default function FunnelReportPage() {
       doc.setFontSize(14);
       doc.text('Análise de Cohort - Retenção por Receita', 14, 20);
 
-      const cohortHeaders = ['Cohort', 'Convertidos', 'Mês 0', 'Mês 1', 'Mês 2', 'Mês 3', 'Conv. Final'];
+      const cohortHeaders = ['Cohort', 'Convertidos', 'Rastreados', 'Mês 0', 'Mês 1', 'Mês 2', 'Mês 3', 'Conv. Final'];
       const cohortBody = data.cohortData.map((c) => [
         c.cohort,
         c.convertedLeads.toString(),
-        c.retention[0] && !c.retention[0].isFuture ? `${c.retention[0].retentionRate.toFixed(0)}%` : '--',
-        c.retention[1] && !c.retention[1].isFuture ? `${c.retention[1].retentionRate.toFixed(0)}%` : '--',
-        c.retention[2] && !c.retention[2].isFuture ? `${c.retention[2].retentionRate.toFixed(0)}%` : '--',
-        c.retention[3] && !c.retention[3].isFuture ? `${c.retention[3].retentionRate.toFixed(0)}%` : '--',
-        `${c.finalConversionRate.toFixed(1)}%`,
+        c.trackedLeads.toString(),
+        c.trackedLeads > 0 && c.retention[0] && !c.retention[0].isFuture ? `${(c.retention[0].retentionRate ?? 0).toFixed(0)}%` : '--',
+        c.trackedLeads > 0 && c.retention[1] && !c.retention[1].isFuture ? `${(c.retention[1].retentionRate ?? 0).toFixed(0)}%` : '--',
+        c.trackedLeads > 0 && c.retention[2] && !c.retention[2].isFuture ? `${(c.retention[2].retentionRate ?? 0).toFixed(0)}%` : '--',
+        c.trackedLeads > 0 && c.retention[3] && !c.retention[3].isFuture ? `${(c.retention[3].retentionRate ?? 0).toFixed(0)}%` : '--',
+        `${(c.finalConversionRate ?? 0).toFixed(1)}%`,
       ]);
 
       autoTable(doc, {
@@ -552,6 +553,7 @@ export default function FunnelReportPage() {
                       <tr className="border-b">
                         <th className="text-left py-3 px-4 font-medium">Cohort</th>
                         <th className="text-center py-3 px-4 font-medium">Convertidos</th>
+                        <th className="text-center py-3 px-4 font-medium" title="Leads convertidos com cliente vinculado para rastreamento de receita">Rastreados</th>
                         <th className="text-center py-3 px-2 font-medium">Mês 0</th>
                         <th className="text-center py-3 px-2 font-medium">Mês 1</th>
                         <th className="text-center py-3 px-2 font-medium">Mês 2</th>
@@ -566,9 +568,18 @@ export default function FunnelReportPage() {
                         <tr key={cohort.cohort} className="border-b last:border-0">
                           <td className="py-3 px-4 font-medium">{cohort.cohort}</td>
                           <td className="text-center py-3 px-4">{cohort.convertedLeads}</td>
+                          <td className="text-center py-3 px-4">
+                            <span 
+                              className={`${cohort.trackedLeads > 0 ? 'text-blue-600 font-medium' : 'text-muted-foreground'}`}
+                              title={`${cohort.trackedLeads} de ${cohort.convertedLeads} leads possuem cliente vinculado`}
+                            >
+                              {cohort.trackedLeads}
+                            </span>
+                          </td>
                           {[0, 1, 2, 3, 4, 5].map((monthIndex) => {
                             const retention = cohort.retention[monthIndex];
-                            if (!retention || retention.isFuture || retention.retentionRate === undefined) {
+                            // Show "--" if no tracked leads, future month, or missing data
+                            if (!retention || retention.isFuture || retention.retentionRate === undefined || cohort.trackedLeads === 0) {
                               return (
                                 <td key={monthIndex} className="text-center py-3 px-2">
                                   <span className="text-muted-foreground">--</span>
@@ -579,6 +590,7 @@ export default function FunnelReportPage() {
                               <td key={monthIndex} className="text-center py-2 px-1">
                                 <span
                                   className={`inline-block px-2 py-1 rounded text-xs font-medium min-w-[48px] ${getRetentionColor(retention.retentionRate)}`}
+                                  title={`${retention.retained} de ${retention.converted} clientes geraram receita`}
                                 >
                                   {(retention.retentionRate ?? 0).toFixed(0)}%
                                 </span>
@@ -596,7 +608,7 @@ export default function FunnelReportPage() {
                   </table>
                 </div>
                 <p className="text-xs text-muted-foreground mt-4">
-                  Mês 0 = mês da conversão • Retenção = % de clientes que geraram receita naquele mês • "--" = mês futuro
+                  Convertidos = leads com status "convertido" • Rastreados = leads com cliente vinculado • Retenção = % dos rastreados que geraram receita • "--" = sem dados/mês futuro
                 </p>
               </CardContent>
             </Card>
