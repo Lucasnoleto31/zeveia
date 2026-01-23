@@ -24,7 +24,8 @@ export interface CohortData {
   cohort: string;
   cohortDate: Date;
   totalLeads: number;
-  convertedLeads: number;  // Total de leads que se converteram em clientes
+  convertedLeads: number;  // Total de leads com status 'convertido'
+  trackedLeads: number;    // Leads convertidos com cliente vinculado (para rastreamento de receita)
   retention: CohortRetention[];
   finalConversionRate: number;
   avgTimeToConvert: number | null;
@@ -396,16 +397,20 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         .map(([key, { cohortDate, leads }]) => {
           const totalCohortLeads = leads.length;
           
-          // Filter only converted leads with a linked client
-          const convertedLeadsWithClient = leads.filter((lead) => {
-            if (lead.status !== 'convertido' || !lead.converted_at) return false;
+          // Count ALL converted leads (regardless of client link)
+          const allConvertedLeads = leads.filter((lead) => lead.status === 'convertido');
+          const totalConverted = allConvertedLeads.length;
+          
+          // Filter only converted leads with a linked client (for retention tracking)
+          const convertedLeadsWithClient = allConvertedLeads.filter((lead) => {
+            if (!lead.converted_at) return false;
             const clientId = leadToClient.get(lead.id);
             return !!clientId;
           });
-
-          const convertedCount = convertedLeadsWithClient.length;
+          const trackedConverted = convertedLeadsWithClient.length;
 
           // Calculate retention based on revenue for each month after conversion
+          // Use trackedConverted as base for retention calculation
           const maxMonthsToShow = 6;
           const retention: CohortRetention[] = [];
 
@@ -420,7 +425,7 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
             if (isFuture) {
               retention.push({
                 month: m,
-                converted: convertedCount,
+                converted: trackedConverted,
                 retained: 0,
                 retentionRate: 0,
                 isFuture: true,
@@ -428,7 +433,7 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
               continue;
             }
 
-            // Count how many converted clients generated revenue in this month
+            // Count how many tracked clients generated revenue in this month
             let retainedCount = 0;
             convertedLeadsWithClient.forEach((lead) => {
               const clientId = leadToClient.get(lead.id);
@@ -448,20 +453,20 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
 
             retention.push({
               month: m,
-              converted: convertedCount,
+              converted: trackedConverted,
               retained: retainedCount,
-              retentionRate: convertedCount > 0 ? (retainedCount / convertedCount) * 100 : 0,
+              retentionRate: trackedConverted > 0 ? (retainedCount / trackedConverted) * 100 : 0,
               isFuture: false,
             });
           }
 
-          // Calculate cohort conversion rate (leads -> clients)
+          // Calculate cohort conversion rate (leads -> converted leads)
           const finalConversionRate = totalCohortLeads > 0 
-            ? (convertedCount / totalCohortLeads) * 100 
+            ? (totalConverted / totalCohortLeads) * 100 
             : 0;
 
           // Calculate average time to convert for this cohort
-          const convertedWithTime = leads.filter((l) => l.status === 'convertido' && l.converted_at);
+          const convertedWithTime = allConvertedLeads.filter((l) => l.converted_at);
           const avgTimeToConvert = convertedWithTime.length > 0
             ? convertedWithTime.reduce((sum, lead) => {
                 return sum + differenceInDays(parseISO(lead.converted_at!), parseISO(lead.created_at));
@@ -472,7 +477,8 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
             cohort: format(cohortDate, 'MMM/yy', { locale: ptBR }),
             cohortDate,
             totalLeads: totalCohortLeads,
-            convertedLeads: convertedCount,
+            convertedLeads: totalConverted,      // All converted leads
+            trackedLeads: trackedConverted,      // Only those with client link
             retention,
             finalConversionRate,
             avgTimeToConvert,
