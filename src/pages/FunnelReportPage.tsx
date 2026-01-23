@@ -147,16 +147,16 @@ export default function FunnelReportPage() {
     if (data.cohortData.length > 0) {
       doc.addPage();
       doc.setFontSize(14);
-      doc.text('Análise de Cohort', 14, 20);
+      doc.text('Análise de Cohort - Retenção por Receita', 14, 20);
 
-      const cohortHeaders = ['Cohort', 'Total', 'Mês 0', 'Mês 1', 'Mês 2', 'Mês 3', 'Conv. Final'];
+      const cohortHeaders = ['Cohort', 'Convertidos', 'Mês 0', 'Mês 1', 'Mês 2', 'Mês 3', 'Conv. Final'];
       const cohortBody = data.cohortData.map((c) => [
         c.cohort,
-        c.totalLeads.toString(),
-        c.retention[0] ? `${c.retention[0].activeRate.toFixed(0)}%` : '-',
-        c.retention[1] ? `${c.retention[1].activeRate.toFixed(0)}%` : '-',
-        c.retention[2] ? `${c.retention[2].activeRate.toFixed(0)}%` : '-',
-        c.retention[3] ? `${c.retention[3].activeRate.toFixed(0)}%` : '-',
+        c.convertedLeads.toString(),
+        c.retention[0] && !c.retention[0].isFuture ? `${c.retention[0].retentionRate.toFixed(0)}%` : '--',
+        c.retention[1] && !c.retention[1].isFuture ? `${c.retention[1].retentionRate.toFixed(0)}%` : '--',
+        c.retention[2] && !c.retention[2].isFuture ? `${c.retention[2].retentionRate.toFixed(0)}%` : '--',
+        c.retention[3] && !c.retention[3].isFuture ? `${c.retention[3].retentionRate.toFixed(0)}%` : '--',
         `${c.finalConversionRate.toFixed(1)}%`,
       ]);
 
@@ -539,9 +539,9 @@ export default function FunnelReportPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  Análise de Cohort - Retenção
+                  Análise de Cohort - Retenção por Receita
                   <Badge variant="secondary" className="font-normal">
-                    % de leads ativos + convertidos por mês
+                    % de clientes que geraram receita por mês
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -551,7 +551,7 @@ export default function FunnelReportPage() {
                     <thead>
                       <tr className="border-b">
                         <th className="text-left py-3 px-4 font-medium">Cohort</th>
-                        <th className="text-center py-3 px-4 font-medium">Total</th>
+                        <th className="text-center py-3 px-4 font-medium">Convertidos</th>
                         <th className="text-center py-3 px-2 font-medium">Mês 0</th>
                         <th className="text-center py-3 px-2 font-medium">Mês 1</th>
                         <th className="text-center py-3 px-2 font-medium">Mês 2</th>
@@ -565,22 +565,22 @@ export default function FunnelReportPage() {
                       {data.cohortData.map((cohort) => (
                         <tr key={cohort.cohort} className="border-b last:border-0">
                           <td className="py-3 px-4 font-medium">{cohort.cohort}</td>
-                          <td className="text-center py-3 px-4">{cohort.totalLeads}</td>
+                          <td className="text-center py-3 px-4">{cohort.convertedLeads}</td>
                           {[0, 1, 2, 3, 4, 5].map((monthIndex) => {
                             const retention = cohort.retention[monthIndex];
-                            if (!retention) {
+                            if (!retention || retention.isFuture) {
                               return (
                                 <td key={monthIndex} className="text-center py-3 px-2">
-                                  <span className="text-muted-foreground">-</span>
+                                  <span className="text-muted-foreground">--</span>
                                 </td>
                               );
                             }
                             return (
                               <td key={monthIndex} className="text-center py-2 px-1">
                                 <span
-                                  className={`inline-block px-2 py-1 rounded text-xs font-medium min-w-[48px] ${getRetentionColor(retention.activeRate)}`}
+                                  className={`inline-block px-2 py-1 rounded text-xs font-medium min-w-[48px] ${getRetentionColor(retention.retentionRate)}`}
                                 >
-                                  {retention.activeRate.toFixed(0)}%
+                                  {retention.retentionRate.toFixed(0)}%
                                 </span>
                               </td>
                             );
@@ -595,26 +595,27 @@ export default function FunnelReportPage() {
                     </tbody>
                   </table>
                 </div>
+                <p className="text-xs text-muted-foreground mt-4">
+                  Mês 0 = mês da conversão • Retenção = % de clientes que geraram receita naquele mês • "--" = mês futuro
+                </p>
               </CardContent>
             </Card>
 
-            {/* Cohort Conversion Chart */}
+            {/* Cohort Retention Chart */}
             <Card>
               <CardHeader>
-                <CardTitle>Conversão por Cohort</CardTitle>
+                <CardTitle>Retenção por Cohort (Mês 0)</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart
                     data={data.cohortData.map((c) => {
-                      const lastRetention = c.retention && c.retention.length > 0 
-                        ? c.retention[c.retention.length - 1] 
-                        : null;
+                      const month0Retention = c.retention.find(r => r.month === 0 && !r.isFuture);
                       return {
                         cohort: c.cohort,
-                        convertidos: lastRetention?.converted || 0,
-                        ativos: lastRetention?.active || 0,
-                        perdidos: lastRetention?.lost || 0,
+                        convertidos: c.convertedLeads,
+                        comReceita: month0Retention?.retained || 0,
+                        semReceita: c.convertedLeads - (month0Retention?.retained || 0),
                       };
                     })}
                   >
@@ -628,9 +629,8 @@ export default function FunnelReportPage() {
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="convertidos" name="Convertidos" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="ativos" name="Em Andamento" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="perdidos" name="Perdidos" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="comReceita" name="Com Receita" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="semReceita" name="Sem Receita" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>

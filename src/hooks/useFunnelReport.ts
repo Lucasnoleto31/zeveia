@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { LeadStatus } from '@/types/database';
-import { startOfMonth, endOfMonth, subMonths, format, parseISO, differenceInDays, differenceInMonths } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, format, parseISO, differenceInDays, differenceInMonths, addMonths, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export interface FunnelStage {
@@ -13,18 +13,18 @@ export interface FunnelStage {
 }
 
 export interface CohortRetention {
-  month: number;
-  active: number;
-  converted: number;
-  lost: number;
-  activeRate: number;
-  conversionRate: number;
+  month: number;           // Mês após conversão (0 = mês da conversão)
+  converted: number;       // Total de leads convertidos em clientes neste cohort
+  retained: number;        // Clientes que geraram receita neste mês
+  retentionRate: number;   // % de retenção (retained / converted * 100)
+  isFuture: boolean;       // Se o mês ainda não ocorreu
 }
 
 export interface CohortData {
   cohort: string;
   cohortDate: Date;
   totalLeads: number;
+  convertedLeads: number;  // Total de leads que se converteram em clientes
   retention: CohortRetention[];
   finalConversionRate: number;
   avgTimeToConvert: number | null;
@@ -141,14 +141,93 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         return allData;
       }
 
-      const leads = await fetchAllLeadsForFunnel();
+      // Fetch clients converted from leads (for cohort retention)
+      async function fetchClientsFromLeads() {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
 
-      // Get assessor profiles
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, name');
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
 
+          const { data, error } = await supabase
+            .from('clients')
+            .select('id, converted_from_lead_id, created_at')
+            .not('converted_from_lead_id', 'is', null)
+            .range(from, to);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
+      }
+
+      // Fetch revenues for retention calculation
+      async function fetchRevenuesForRetention() {
+        const PAGE_SIZE = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          const { data, error } = await supabase
+            .from('revenues')
+            .select('client_id, date')
+            .gte('date', startDateISO.slice(0, 10))
+            .range(from, to);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
+      }
+
+      // Parallel fetch all data
+      const [leads, clientsFromLeads, revenuesData, profilesResult] = await Promise.all([
+        fetchAllLeadsForFunnel(),
+        fetchClientsFromLeads(),
+        fetchRevenuesForRetention(),
+        supabase.from('profiles').select('user_id, name')
+      ]);
+
+      const profiles = profilesResult.data;
       const profilesMap = new Map(profiles?.map(p => [p.user_id, p.name]) || []);
+
+      // Build lead -> client mapping
+      const leadToClient = new Map<string, string>(
+        clientsFromLeads?.map((c: any) => [c.converted_from_lead_id, c.id]) || []
+      );
+
+      // Build client -> revenue months mapping
+      const clientRevenueMonths = new Map<string, Set<string>>();
+      revenuesData?.forEach((r: any) => {
+        const monthKey = r.date.slice(0, 7); // 'yyyy-MM'
+        if (!clientRevenueMonths.has(r.client_id)) {
+          clientRevenueMonths.set(r.client_id, new Set());
+        }
+        clientRevenueMonths.get(r.client_id)!.add(monthKey);
+      });
 
       const allLeads = (leads || []).map(lead => ({
         ...lead,
@@ -290,7 +369,7 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         .map(([reason, count]) => ({ reason, count }))
         .sort((a, b) => b.count - a.count);
 
-      // Cohort Analysis
+      // Cohort Analysis - NEW: Based on revenue retention
       const cohortGroups: Record<string, { 
         cohortDate: Date; 
         leads: typeof allLeads 
@@ -310,58 +389,75 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
       });
 
       const now = new Date();
+      const currentMonthKey = format(now, 'yyyy-MM');
+
       const cohortData: CohortData[] = Object.entries(cohortGroups)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([key, { cohortDate, leads }]) => {
           const totalCohortLeads = leads.length;
-          const maxMonthsElapsed = differenceInMonths(now, cohortDate);
           
-          // Calculate retention for each month after entry
+          // Filter only converted leads with a linked client
+          const convertedLeadsWithClient = leads.filter((lead) => {
+            if (lead.status !== 'convertido' || !lead.converted_at) return false;
+            const clientId = leadToClient.get(lead.id);
+            return !!clientId;
+          });
+
+          const convertedCount = convertedLeadsWithClient.length;
+
+          // Calculate retention based on revenue for each month after conversion
+          const maxMonthsToShow = 6;
           const retention: CohortRetention[] = [];
-          for (let m = 0; m <= Math.min(maxMonthsElapsed, 5); m++) {
-            const checkDate = subMonths(now, maxMonthsElapsed - m);
+
+          for (let m = 0; m < maxMonthsToShow; m++) {
+            // The check month is m months after the cohort month
+            const checkMonthDate = addMonths(cohortDate, m);
+            const checkMonthKey = format(checkMonthDate, 'yyyy-MM');
             
-            let active = 0;
-            let converted = 0;
-            let lost = 0;
-            
-            leads.forEach((lead) => {
-              const createdAt = parseISO(lead.created_at);
-              const monthsSinceEntry = differenceInMonths(checkDate, createdAt);
-              
-              if (monthsSinceEntry >= m) {
-                // Check status at this point (simplified - using current status)
-                if (lead.status === 'convertido') {
-                  const convertedAt = lead.converted_at ? parseISO(lead.converted_at) : null;
-                  if (convertedAt && differenceInMonths(convertedAt, createdAt) <= m) {
-                    converted++;
-                  } else if (!convertedAt || differenceInMonths(convertedAt, createdAt) > m) {
-                    active++;
-                  } else {
-                    converted++;
-                  }
-                } else if (lead.status === 'perdido') {
-                  lost++;
-                } else {
-                  active++;
-                }
+            // Determine if this month is in the future
+            const isFuture = isBefore(new Date(), startOfMonth(checkMonthDate));
+
+            if (isFuture) {
+              retention.push({
+                month: m,
+                converted: convertedCount,
+                retained: 0,
+                retentionRate: 0,
+                isFuture: true,
+              });
+              continue;
+            }
+
+            // Count how many converted clients generated revenue in this month
+            let retainedCount = 0;
+            convertedLeadsWithClient.forEach((lead) => {
+              const clientId = leadToClient.get(lead.id);
+              if (!clientId) return;
+
+              const conversionDate = parseISO(lead.converted_at!);
+              const conversionMonthKey = format(conversionDate, 'yyyy-MM');
+
+              // Only count if conversion happened on or before the check month
+              if (conversionMonthKey > checkMonthKey) return;
+
+              const revenueMonths = clientRevenueMonths.get(clientId);
+              if (revenueMonths?.has(checkMonthKey)) {
+                retainedCount++;
               }
             });
 
             retention.push({
               month: m,
-              active,
-              converted,
-              lost,
-              activeRate: totalCohortLeads > 0 ? ((active + converted) / totalCohortLeads) * 100 : 0,
-              conversionRate: totalCohortLeads > 0 ? (converted / totalCohortLeads) * 100 : 0,
+              converted: convertedCount,
+              retained: retainedCount,
+              retentionRate: convertedCount > 0 ? (retainedCount / convertedCount) * 100 : 0,
+              isFuture: false,
             });
           }
 
-          // Calculate cohort conversion rate
-          const convertedInCohort = leads.filter((l) => l.status === 'convertido').length;
+          // Calculate cohort conversion rate (leads -> clients)
           const finalConversionRate = totalCohortLeads > 0 
-            ? (convertedInCohort / totalCohortLeads) * 100 
+            ? (convertedCount / totalCohortLeads) * 100 
             : 0;
 
           // Calculate average time to convert for this cohort
@@ -376,26 +472,39 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
             cohort: format(cohortDate, 'MMM/yy', { locale: ptBR }),
             cohortDate,
             totalLeads: totalCohortLeads,
+            convertedLeads: convertedCount,
             retention,
             finalConversionRate,
             avgTimeToConvert,
           };
         });
 
-      // Find best performing cohort
+      // Find best performing cohort (highest retention at month 3, or latest available)
       const bestCohort = cohortData.length > 0
-        ? cohortData.reduce((best, current) => 
-            current.finalConversionRate > (best?.rate || 0) 
-              ? { cohort: current.cohort, rate: current.finalConversionRate }
-              : best,
-            { cohort: '', rate: 0 }
-          )
+        ? cohortData.reduce((best, current) => {
+            // Look for retention at month 3, or fallback to the best available
+            const month3Retention = current.retention.find(r => r.month === 3 && !r.isFuture);
+            const bestMonth3Retention = best ? (cohortData.find(c => c.cohort === best.cohort)?.retention.find(r => r.month === 3 && !r.isFuture)) : null;
+            
+            const currentRate = month3Retention?.retentionRate ?? current.finalConversionRate;
+            const bestRate = bestMonth3Retention?.retentionRate ?? best?.rate ?? 0;
+            
+            return currentRate > bestRate 
+              ? { cohort: current.cohort, rate: currentRate }
+              : best;
+          }, { cohort: '', rate: 0 } as { cohort: string; rate: number })
         : null;
 
       // Calculate average retention at 3 months
-      const cohortsWithMonth3 = cohortData.filter((c) => c.retention.length > 3);
+      const cohortsWithMonth3 = cohortData.filter((c) => {
+        const month3 = c.retention.find(r => r.month === 3);
+        return month3 && !month3.isFuture;
+      });
       const avgRetentionAt3Months = cohortsWithMonth3.length > 0
-        ? cohortsWithMonth3.reduce((sum, c) => sum + (c.retention[3]?.activeRate || 0), 0) / cohortsWithMonth3.length
+        ? cohortsWithMonth3.reduce((sum, c) => {
+            const month3 = c.retention.find(r => r.month === 3);
+            return sum + (month3?.retentionRate || 0);
+          }, 0) / cohortsWithMonth3.length
         : 0;
 
       // Aggregate leads by day for daily calendar view
