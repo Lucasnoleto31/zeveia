@@ -1,153 +1,109 @@
 
-## Plano: Análise de Cohort com Retenção por Receita
+## Problema Identificado
 
-### Problema Identificado
+A análise de cohort mostra apenas **2 leads convertidos** quando deveriam aparecer **76** porque:
 
-A análise de cohort atual calcula "retenção" baseada apenas no **status do lead**:
-- Se o lead não foi marcado como "perdido", ele conta como "retido"
-- Isso resulta em 81% de retenção mesmo para leads de Janeiro/2025 que ainda não geraram receita
+| Verificação | Valor |
+|-------------|-------|
+| Leads com status 'convertido' | 76 |
+| Clientes com `converted_from_lead_id` preenchido | 2 |
+| Leads com `client_id` preenchido | 4 |
 
-**Comportamento esperado**: Retenção deveria significar que o cliente convertido **gerou receita** em cada mês subsequente à conversão.
-
----
-
-### Arquitetura da Solução
-
-1. Vincular leads convertidos aos clientes através de `clients.converted_from_lead_id`
-2. Para cada cliente vinculado, verificar em quais meses ele gerou receita (tabela `revenues`)
-3. Calcular retenção real: % de clientes do cohort que geraram receita em cada mês
+A lógica atual no `useFunnelReport.ts` **só conta leads que têm vínculo com cliente** através de `clients.converted_from_lead_id`. A maioria dos leads (74 de 76) foram marcados como "convertido" **antes** do sistema de vinculação existir ou manualmente, sem criar o cliente pelo fluxo correto.
 
 ---
 
-### Alterações Técnicas
+## Solução Proposta
 
-#### 1. Modificar `useFunnelReport.ts`
+Modificar a lógica de cohort para mostrar **todos os leads convertidos**, independentemente de ter vínculo:
 
-**Buscar dados adicionais necessários:**
+### 1. Contar todos os leads convertidos no cohort
+- Usar o campo `status = 'convertido'` como base
+- Para cálculo de "Convertidos", contar todos os leads convertidos (não apenas os que têm cliente vinculado)
 
-```typescript
-// Buscar clientes convertidos de leads
-const { data: clientsFromLeads } = await supabase
-  .from('clients')
-  .select('id, converted_from_lead_id, created_at')
-  .not('converted_from_lead_id', 'is', null);
+### 2. Calcular retenção apenas para leads vinculados
+- A retenção por receita continua sendo calculada apenas para leads que têm cliente vinculado
+- Leads sem vínculo aparecem como "convertidos" mas sem dados de retenção
 
-// Buscar receitas para verificar atividade mensal
-const { data: revenuesData } = await supabase
-  .from('revenues')
-  .select('client_id, date')
-  .gte('date', startDateISO.slice(0, 10));
-```
+### 3. Adicionar indicador visual
+- Mostrar quantos leads convertidos têm vínculo vs. total
+- Tooltip explicativo para dados históricos sem rastreamento
 
-**Criar mapa de atividade por cliente/mês:**
+---
 
-```typescript
-// Mapear lead -> client
-const leadToClient = new Map(
-  clientsFromLeads?.map(c => [c.converted_from_lead_id, c.id]) || []
-);
+## Alterações Técnicas
 
-// Mapear client -> meses com receita
-const clientRevenueMonths = new Map<string, Set<string>>();
-revenuesData?.forEach(r => {
-  const monthKey = r.date.slice(0, 7); // 'yyyy-MM'
-  if (!clientRevenueMonths.has(r.client_id)) {
-    clientRevenueMonths.set(r.client_id, new Set());
-  }
-  clientRevenueMonths.get(r.client_id)!.add(monthKey);
-});
-```
+### Arquivo: `src/hooks/useFunnelReport.ts`
 
-**Reformular cálculo de retenção:**
+**Linha ~400-406** - Modificar contagem de convertidos:
 
 ```typescript
-// Para cada lead convertido, verificar se o cliente gerou receita
-leads.forEach((lead) => {
-  if (lead.status !== 'convertido') {
-    // Leads não convertidos não entram na análise de retenção por receita
-    return;
-  }
-  
+// ANTES: Apenas leads convertidos COM cliente vinculado
+const convertedLeadsWithClient = leads.filter((lead) => {
+  if (lead.status !== 'convertido' || !lead.converted_at) return false;
   const clientId = leadToClient.get(lead.id);
-  if (!clientId) return; // Lead convertido sem cliente vinculado
-  
-  const revenueMonths = clientRevenueMonths.get(clientId) || new Set();
-  const conversionDate = lead.converted_at ? parseISO(lead.converted_at) : null;
-  
-  // Para cada mês após a conversão, verificar se gerou receita
-  for (let m = 0; m <= maxMonths; m++) {
-    const checkMonth = addMonths(conversionDate, m);
-    const monthKey = format(checkMonth, 'yyyy-MM');
-    
-    if (revenueMonths.has(monthKey)) {
-      retention[m].retained++;
-    }
-  }
+  return !!clientId;
 });
+const convertedCount = convertedLeadsWithClient.length;
+
+// DEPOIS: Separar contagem total de vinculados
+const allConvertedLeads = leads.filter((lead) => 
+  lead.status === 'convertido'
+);
+const convertedLeadsWithClient = allConvertedLeads.filter((lead) => 
+  leadToClient.has(lead.id)
+);
+const totalConverted = allConvertedLeads.length;  // Para exibir
+const trackedConverted = convertedLeadsWithClient.length;  // Para retenção
 ```
 
----
-
-#### 2. Atualizar Interface `CohortRetention`
+**Atualizar interface CohortData:**
 
 ```typescript
-export interface CohortRetention {
-  month: number;           // Mês após conversão (0 = mês da conversão)
-  converted: number;       // Total de leads convertidos em clientes
-  retained: number;        // Clientes que geraram receita neste mês
-  retentionRate: number;   // % de retenção (retained / converted * 100)
+export interface CohortData {
+  cohort: string;
+  cohortDate: Date;
+  totalLeads: number;
+  convertedLeads: number;      // Total de leads convertidos
+  trackedLeads: number;        // NOVO: Leads com vínculo ao cliente
+  retention: CohortRetention[];
+  finalConversionRate: number;
+  avgTimeToConvert: number | null;
 }
 ```
 
----
+**Cálculo de retenção ajustado:**
+- Base para % de retenção: `trackedConverted` (leads com cliente vinculado)
+- Se `trackedConverted = 0`, mostrar "--" em vez de 0%
 
-#### 3. Atualizar Visualização na `FunnelReportPage.tsx`
+### Arquivo: `src/pages/FunnelReportPage.tsx`
 
-**Heatmap com nova semântica:**
+**Atualizar heatmap (~linha 554-568):**
 
-| Cohort | Convertidos | Mês 0 | Mês 1 | Mês 2 | Mês 3 |
-|--------|-------------|-------|-------|-------|-------|
-| Jan/25 | 15 | 60% | 53% | 47% | -- |
-| Fev/25 | 22 | 72% | 68% | -- | -- |
-| Mar/25 | 18 | 55% | -- | -- | -- |
+```text
+| Cohort | Convertidos | Rastreados | Mês 0 | Mês 1 | ... |
+|--------|-------------|------------|-------|-------|-----|
+| Jan/25 | 15          | 2          | 50%   | 50%   | ... |
+```
 
-- **Mês 0**: % de clientes que geraram receita no mesmo mês da conversão
-- **Mês 1+**: % que continuou gerando receita nos meses seguintes
-- **"--"**: Mês ainda não ocorreu (futuro)
-
----
-
-### Métricas Derivadas
-
-Com a nova lógica, também atualizaremos:
-
-1. **Melhor Cohort**: Cohort com maior retenção no mês 3 (ou último disponível)
-2. **Retenção Média 3 Meses**: Média de retenção de todos os cohorts no 3º mês
-3. **Churn Rate**: 100% - Retenção (para cada mês)
+- Adicionar coluna "Rastreados" para mostrar quantos têm vínculo
+- Tooltip: "X de Y leads convertidos possuem cliente vinculado para rastreamento de receita"
 
 ---
 
-### Tratamento de Edge Cases
+## Resultado Esperado
 
-1. **Leads convertidos sem cliente vinculado**: Serão ignorados na análise (dados históricos sem vínculo)
-2. **Clientes sem receita**: Contarão como "não retidos" em todos os meses
-3. **Meses futuros**: Células mostrarão "--" ou ficarão vazias
-4. **Cohorts muito recentes**: Mostrarão apenas os meses disponíveis
-
----
-
-### Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/hooks/useFunnelReport.ts` | Buscar clientes e receitas; reformular cálculo de retenção baseado em receita |
-| `src/pages/FunnelReportPage.tsx` | Atualizar labels do heatmap e tooltips para refletir nova semântica |
+| Antes | Depois |
+|-------|--------|
+| Convertidos: 2 | Convertidos: 76 |
+| Retenção baseada em 2 leads | Retenção baseada nos 2 com vínculo |
+| Confusão sobre dados | Transparência: "76 convertidos, 2 rastreados" |
 
 ---
 
-### Benefícios
+## Benefícios
 
-1. **Métrica real de negócio**: Retenção agora significa "cliente gerando receita"
-2. **Identificar problemas de onboarding**: Se muitos convertem mas poucos geram receita no Mês 0
-3. **Detectar churn precoce**: Queda de retenção entre Mês 1 e Mês 2
-4. **Avaliar qualidade do lead**: Cohorts com alta conversão mas baixa retenção indicam leads de baixa qualidade
+1. **Números corretos**: Mostra os 76 leads convertidos reais
+2. **Transparência**: Indica claramente quantos têm dados de retenção
+3. **Compatibilidade histórica**: Dados antigos sem vínculo são exibidos
+4. **Incentivo para usar fluxo correto**: Usuário vê que "rastreados" é baixo e entende a importância
