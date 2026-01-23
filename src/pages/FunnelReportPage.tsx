@@ -568,7 +568,7 @@ export default function FunnelReportPage() {
                           <td className="text-center py-3 px-4">{cohort.convertedLeads}</td>
                           {[0, 1, 2, 3, 4, 5].map((monthIndex) => {
                             const retention = cohort.retention[monthIndex];
-                            if (!retention || retention.isFuture) {
+                            if (!retention || retention.isFuture || retention.retentionRate === undefined) {
                               return (
                                 <td key={monthIndex} className="text-center py-3 px-2">
                                   <span className="text-muted-foreground">--</span>
@@ -580,14 +580,14 @@ export default function FunnelReportPage() {
                                 <span
                                   className={`inline-block px-2 py-1 rounded text-xs font-medium min-w-[48px] ${getRetentionColor(retention.retentionRate)}`}
                                 >
-                                  {retention.retentionRate.toFixed(0)}%
+                                  {(retention.retentionRate ?? 0).toFixed(0)}%
                                 </span>
                               </td>
                             );
                           })}
                           <td className="text-center py-3 px-4">
-                            <span className={`font-medium ${cohort.finalConversionRate >= 20 ? 'text-green-600' : cohort.finalConversionRate >= 10 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
-                              {cohort.finalConversionRate.toFixed(1)}%
+                            <span className={`font-medium ${(cohort.finalConversionRate ?? 0) >= 20 ? 'text-green-600' : (cohort.finalConversionRate ?? 0) >= 10 ? 'text-yellow-600' : 'text-muted-foreground'}`}>
+                              {(cohort.finalConversionRate ?? 0).toFixed(1)}%
                             </span>
                           </td>
                         </tr>
