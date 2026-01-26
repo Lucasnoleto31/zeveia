@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,13 +19,21 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { Download, Loader2, TrendingUp, Users, Trophy, Clock, CalendarDays } from 'lucide-react';
+import { Download, Loader2, TrendingUp, Users, Trophy, Clock, CalendarDays, Filter } from 'lucide-react';
 import { useFunnelReport, LeadWithDetails } from '@/hooks/useFunnelReport';
 import { FunnelChart } from '@/components/reports/FunnelChart';
 import { ConversionRateCard } from '@/components/reports/ConversionRateCard';
 import { PeriodFilter, getPeriodLabel } from '@/components/reports/PeriodFilter';
 import { LeadsCalendarView } from '@/components/reports/LeadsCalendarView';
 import { DayLeadsDetailDialog } from '@/components/reports/DayLeadsDetailDialog';
+import { useCampaigns } from '@/hooks/useConfiguration';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -46,14 +55,162 @@ export default function FunnelReportPage() {
   const [customEndDate, setCustomEndDate] = useState<Date>();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
   
-  const { data, isLoading } = useFunnelReport(
+  const { data: campaigns } = useCampaigns();
+  const { data: rawData, isLoading } = useFunnelReport(
     periodType === 'custom' && customStartDate && customEndDate
       ? { startDate: format(customStartDate, 'yyyy-MM-dd'), endDate: format(customEndDate, 'yyyy-MM-dd') }
       : { months }
   );
 
+  // Filter data by selected campaign
+  const data = useMemo(() => {
+    if (!rawData) return null;
+    if (selectedCampaignId === 'all') return rawData;
+
+    // Find campaign name
+    const selectedCampaign = campaigns?.find(c => c.id === selectedCampaignId);
+    const campaignName = selectedCampaign?.name || '';
+
+    // Filter all leads by campaign
+    const filteredLeads = rawData.allLeadsWithDetails.filter(lead => {
+      const leadCampaign = (lead as any).campaign?.name || 'Sem campanha';
+      return leadCampaign === campaignName;
+    });
+
+    // Recalculate all metrics based on filtered leads
+    const totalLeads = filteredLeads.length;
+    const convertedLeads = filteredLeads.filter(l => l.status === 'convertido').length;
+    const lostLeads = filteredLeads.filter(l => l.status === 'perdido').length;
+    const activeLeads = totalLeads - lostLeads;
+    const conversionRate = activeLeads > 0 ? (convertedLeads / activeLeads) * 100 : 0;
+
+    // Recalculate stages
+    const statusCounts: Record<string, number> = {
+      novo: 0,
+      em_contato: 0,
+      troca_assessoria: 0,
+      convertido: 0,
+      perdido: 0,
+    };
+    filteredLeads.forEach(lead => {
+      if (statusCounts[lead.status] !== undefined) {
+        statusCounts[lead.status]++;
+      }
+    });
+
+    const stages = rawData.stages.map(stage => ({
+      ...stage,
+      count: statusCounts[stage.status] || 0,
+      percentage: totalLeads > 0 ? (statusCounts[stage.status] / totalLeads) * 100 : 0,
+    }));
+
+    // Recalculate leads by day
+    const leadsByDay = rawData.leadsByDay.map(dayMetric => {
+      const dayLeads = filteredLeads.filter(l => 
+        format(parseISO(l.created_at), 'yyyy-MM-dd') === dayMetric.date
+      );
+      const dayConverted = filteredLeads.filter(l => 
+        l.status === 'convertido' && l.converted_at && 
+        format(parseISO(l.converted_at), 'yyyy-MM-dd') === dayMetric.date
+      );
+      const dayLost = filteredLeads.filter(l => 
+        l.status === 'perdido' && 
+        format(parseISO(l.updated_at), 'yyyy-MM-dd') === dayMetric.date
+      );
+      return {
+        date: dayMetric.date,
+        created: dayLeads.length,
+        converted: dayConverted.length,
+        lost: dayLost.length,
+      };
+    });
+
+    // Filter leadsByCampaign to only show selected
+    const leadsByCampaign = rawData.leadsByCampaign.filter(c => c.campaign === campaignName);
+
+    // Recalculate leadsByAssessor
+    const assessorData: Record<string, { count: number; converted: number }> = {};
+    filteredLeads.forEach(lead => {
+      const assessor = (lead as any).assessor?.name || 'Não atribuído';
+      if (!assessorData[assessor]) {
+        assessorData[assessor] = { count: 0, converted: 0 };
+      }
+      assessorData[assessor].count++;
+      if (lead.status === 'convertido') assessorData[assessor].converted++;
+    });
+    const leadsByAssessor = Object.entries(assessorData)
+      .map(([assessor, data]) => ({
+        assessor,
+        count: data.count,
+        converted: data.converted,
+        rate: data.count > 0 ? (data.converted / data.count) * 100 : 0,
+      }))
+      .sort((a, b) => b.rate - a.rate);
+
+    // Recalculate leadsByOrigin
+    const originCounts: Record<string, number> = {};
+    filteredLeads.forEach(lead => {
+      const origin = (lead as any).origin?.name || 'Não informado';
+      originCounts[origin] = (originCounts[origin] || 0) + 1;
+    });
+    const leadsByOrigin = Object.entries(originCounts)
+      .map(([origin, count]) => ({ origin, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // Recalculate lossReasons
+    const lossReasonCounts: Record<string, number> = {};
+    filteredLeads
+      .filter(l => l.status === 'perdido')
+      .forEach(lead => {
+        const reason = (lead as any).loss_reason?.name || 'Não informado';
+        lossReasonCounts[reason] = (lossReasonCounts[reason] || 0) + 1;
+      });
+    const lossReasons = Object.entries(lossReasonCounts)
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Recalculate leadsByMonth
+    const monthsData: Record<string, { novo: number; convertido: number; perdido: number }> = {};
+    rawData.leadsByMonth.forEach(m => {
+      monthsData[m.month] = { novo: 0, convertido: 0, perdido: 0 };
+    });
+    filteredLeads.forEach(lead => {
+      const monthKey = format(parseISO(lead.created_at), 'MMM/yy', { locale: ptBR });
+      if (monthsData[monthKey]) {
+        monthsData[monthKey].novo++;
+        if (lead.status === 'convertido') monthsData[monthKey].convertido++;
+        if (lead.status === 'perdido') monthsData[monthKey].perdido++;
+      }
+    });
+    const leadsByMonth = Object.entries(monthsData).map(([month, data]) => ({
+      month,
+      ...data,
+    }));
+
+    return {
+      ...rawData,
+      totalLeads,
+      convertedLeads,
+      lostLeads,
+      conversionRate,
+      stages,
+      leadsByDay,
+      leadsByCampaign,
+      leadsByAssessor,
+      leadsByOrigin,
+      lossReasons,
+      leadsByMonth,
+      allLeadsWithDetails: filteredLeads,
+    };
+  }, [rawData, selectedCampaignId, campaigns]);
+
   const periodLabel = getPeriodLabel(periodType, months, customStartDate, customEndDate);
+  const selectedCampaignName = selectedCampaignId === 'all' 
+    ? 'Todas as Campanhas' 
+    : campaigns?.find(c => c.id === selectedCampaignId)?.name || '';
 
   // Get leads for selected date
   const selectedDateLeads = useMemo(() => {
@@ -101,6 +258,10 @@ export default function FunnelReportPage() {
 
     doc.setFontSize(12);
     doc.text(`Período: ${periodLabel}`, pageWidth / 2, 30, { align: 'center' });
+    
+    if (selectedCampaignId !== 'all') {
+      doc.text(`Campanha: ${selectedCampaignName}`, pageWidth / 2, 38, { align: 'center' });
+    }
 
     // Metrics
     doc.setFontSize(14);
@@ -201,7 +362,14 @@ export default function FunnelReportPage() {
               <TrendingUp className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Funil de Vendas</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">Funil de Vendas</h1>
+                {selectedCampaignId !== 'all' && (
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedCampaignName}
+                  </Badge>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 Análise de conversão e pipeline de leads
               </p>
@@ -209,6 +377,22 @@ export default function FunnelReportPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Campaign Filter */}
+            <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
+              <SelectTrigger className="w-[200px] bg-background">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filtrar campanha" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="all">Todas as Campanhas</SelectItem>
+                {campaigns?.filter(c => c.active).map((campaign) => (
+                  <SelectItem key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <PeriodFilter
               periodType={periodType}
               onPeriodTypeChange={setPeriodType}
