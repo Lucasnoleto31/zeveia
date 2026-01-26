@@ -52,11 +52,27 @@ export interface DailyLeadMetrics {
   lost: number;          // Leads lost on this day
 }
 
+export interface CampaignDetails {
+  campaign: string;
+  campaignId: string | null;
+  firstLeadDate: string;
+  lastLeadDate: string;
+  total: number;
+  converted: number;
+  lost: number;
+  inProgress: number;
+  conversionRate: number;
+  lossReasons: { reason: string; count: number }[];
+  origins: { origin: string; count: number }[];
+  assessors: { assessor: string; count: number; converted: number }[];
+}
+
 export interface FunnelMetrics {
   stages: FunnelStage[];
   totalLeads: number;
   convertedLeads: number;
   lostLeads: number;
+  inProgressLeads: number;
   conversionRate: number;
   avgConversionDays: number;
   leadsByMonth: { month: string; novo: number; convertido: number; perdido: number }[];
@@ -69,6 +85,7 @@ export interface FunnelMetrics {
   avgRetentionAt3Months: number;
   leadsByDay: DailyLeadMetrics[];
   allLeadsWithDetails: LeadWithDetails[];
+  campaignDetails: CampaignDetails[];
 }
 
 const stageConfig: Record<LeadStatus, { label: string; color: string; order: number }> = {
@@ -339,6 +356,96 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         .sort((a, b) => b.total - a.total)
         .slice(0, 10);
 
+      // NEW: Detailed campaign data for campaign cards
+      const campaignDetailsMap: Record<string, {
+        campaignId: string | null;
+        leads: typeof allLeads;
+        firstDate: string;
+        lastDate: string;
+      }> = {};
+
+      allLeads.forEach((lead) => {
+        const campaignName = lead.campaign?.name || 'Sem campanha';
+        const campaignId = lead.campaign_id || null;
+        
+        if (!campaignDetailsMap[campaignName]) {
+          campaignDetailsMap[campaignName] = {
+            campaignId,
+            leads: [],
+            firstDate: lead.created_at,
+            lastDate: lead.created_at,
+          };
+        }
+        
+        campaignDetailsMap[campaignName].leads.push(lead);
+        
+        if (lead.created_at < campaignDetailsMap[campaignName].firstDate) {
+          campaignDetailsMap[campaignName].firstDate = lead.created_at;
+        }
+        if (lead.created_at > campaignDetailsMap[campaignName].lastDate) {
+          campaignDetailsMap[campaignName].lastDate = lead.created_at;
+        }
+      });
+
+      const campaignDetails: CampaignDetails[] = Object.entries(campaignDetailsMap)
+        .map(([campaignName, data]) => {
+          const leads = data.leads;
+          const total = leads.length;
+          const converted = leads.filter(l => l.status === 'convertido').length;
+          const lost = leads.filter(l => l.status === 'perdido').length;
+          const inProgress = total - converted - lost;
+
+          // Loss reasons for this campaign
+          const lossReasonCounts: Record<string, number> = {};
+          leads.filter(l => l.status === 'perdido').forEach((lead) => {
+            const reason = lead.loss_reason?.name || 'Não informado';
+            lossReasonCounts[reason] = (lossReasonCounts[reason] || 0) + 1;
+          });
+          const lossReasons = Object.entries(lossReasonCounts)
+            .map(([reason, count]) => ({ reason, count }))
+            .sort((a, b) => b.count - a.count);
+
+          // Origins for this campaign
+          const originCounts: Record<string, number> = {};
+          leads.forEach((lead) => {
+            const origin = lead.origin?.name || 'Não informado';
+            originCounts[origin] = (originCounts[origin] || 0) + 1;
+          });
+          const origins = Object.entries(originCounts)
+            .map(([origin, count]) => ({ origin, count }))
+            .sort((a, b) => b.count - a.count);
+
+          // Assessors for this campaign
+          const assessorCounts: Record<string, { count: number; converted: number }> = {};
+          leads.forEach((lead) => {
+            const assessor = lead.assessor?.name || 'Não atribuído';
+            if (!assessorCounts[assessor]) {
+              assessorCounts[assessor] = { count: 0, converted: 0 };
+            }
+            assessorCounts[assessor].count++;
+            if (lead.status === 'convertido') assessorCounts[assessor].converted++;
+          });
+          const assessors = Object.entries(assessorCounts)
+            .map(([assessor, d]) => ({ assessor, count: d.count, converted: d.converted }))
+            .sort((a, b) => b.count - a.count);
+
+          return {
+            campaign: campaignName,
+            campaignId: data.campaignId,
+            firstLeadDate: data.firstDate.slice(0, 10),
+            lastLeadDate: data.lastDate.slice(0, 10),
+            total,
+            converted,
+            lost,
+            inProgress,
+            conversionRate: total > 0 ? (converted / total) * 100 : 0,
+            lossReasons,
+            origins,
+            assessors,
+          };
+        })
+        .sort((a, b) => b.firstLeadDate.localeCompare(a.firstLeadDate) || b.total - a.total);
+
       // Leads by assessor with conversion rate
       const assessorData: Record<string, { count: number; converted: number }> = {};
       allLeads.forEach((lead) => {
@@ -369,6 +476,9 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
       const lossReasons = Object.entries(lossReasonCounts)
         .map(([reason, count]) => ({ reason, count }))
         .sort((a, b) => b.count - a.count);
+
+      // Calculate in progress leads
+      const inProgressLeads = totalLeads - convertedLeads - lostLeads;
 
       // Cohort Analysis - NEW: Based on revenue retention
       const cohortGroups: Record<string, { 
@@ -554,6 +664,7 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         totalLeads,
         convertedLeads,
         lostLeads,
+        inProgressLeads,
         conversionRate,
         avgConversionDays,
         leadsByMonth,
@@ -566,6 +677,7 @@ export function useFunnelReport(options: FunnelReportOptions | number = 6) {
         avgRetentionAt3Months,
         leadsByDay,
         allLeadsWithDetails: allLeads as LeadWithDetails[],
+        campaignDetails,
       };
     },
   });
