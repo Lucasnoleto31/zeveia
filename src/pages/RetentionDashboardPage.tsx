@@ -68,6 +68,8 @@ export default function RetentionDashboardPage() {
   const [actionDialogType, setActionDialogType] = useState<'complete' | 'skip'>('complete');
   const [selectedActionId, setSelectedActionId] = useState<string>('');
   const [actionNotes, setActionNotes] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const { data: dashboard, isLoading: dashboardLoading } = useRetentionDashboard();
   const { data: healthSummary, isLoading: summaryLoading } = useHealthScoresSummary();
@@ -151,6 +153,13 @@ export default function RetentionDashboardPage() {
     if (classificationFilter === 'all') return true;
     return c.classification === classificationFilter;
   }) || [];
+
+  // Pagination
+  const totalPages = Math.ceil(filteredClients.length / PAGE_SIZE);
+  const paginatedClients = filteredClients.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   const isLoading = dashboardLoading || summaryLoading;
 
@@ -282,7 +291,7 @@ export default function RetentionDashboardPage() {
             const meta = RISK_CLASSIFICATIONS[cls];
             const count = healthSummary?.[cls] ?? 0;
             return (
-              <Card key={cls} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setClassificationFilter(cls)}>
+              <Card key={cls} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setClassificationFilter(cls); setCurrentPage(1); }}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -295,7 +304,7 @@ export default function RetentionDashboardPage() {
               </Card>
             );
           })}
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setClassificationFilter('all')}>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setClassificationFilter('all'); setCurrentPage(1); }}>
             <CardContent className="p-4">
               <div>
                 <p className="text-sm text-muted-foreground">Score Médio</p>
@@ -318,7 +327,7 @@ export default function RetentionDashboardPage() {
                   {filteredClients.length} cliente(s) necessitando atenção
                 </CardDescription>
               </div>
-              <Select value={classificationFilter} onValueChange={setClassificationFilter}>
+              <Select value={classificationFilter} onValueChange={(v) => { setClassificationFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Filtrar classificação" />
                 </SelectTrigger>
@@ -338,7 +347,7 @@ export default function RetentionDashboardPage() {
                   <Skeleton key={i} className="h-14 w-full" />
                 ))}
               </div>
-            ) : filteredClients.length === 0 ? (
+            ) : paginatedClients.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-green-500/30" />
                 <p>Nenhum cliente em risco nesta classificação</p>
@@ -360,7 +369,7 @@ export default function RetentionDashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredClients.map((client) => (
+                    {paginatedClients.map((client) => (
                       <TableRow key={client.clientId} className="hover:bg-muted/50">
                         <TableCell>
                           <button
@@ -472,6 +481,58 @@ export default function RetentionDashboardPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filteredClients.length)} de {filteredClients.length} clientes
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    ← Anterior
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 7) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 4) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 3) {
+                        pageNum = totalPages - 6 + i;
+                      } else {
+                        pageNum = currentPage - 3 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? 'default' : 'outline'}
+                          size="sm"
+                          className="w-9 h-9 p-0"
+                          onClick={() => setCurrentPage(pageNum)}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Próximo →
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
