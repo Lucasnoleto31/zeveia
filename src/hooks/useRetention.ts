@@ -336,144 +336,30 @@ export function useRetentionDashboard() {
   return useQuery({
     queryKey: ['retentionDashboard'],
     queryFn: async (): Promise<RetentionDashboardData> => {
-      // Fetch latest health scores (batch to handle >1000 rows)
-      const scores: any[] = [];
-      let page = 0;
-      const PAGE_SIZE = 1000;
-      while (true) {
-        const { data, error: scoresError } = await supabase
-          .from('client_health_scores')
-          .select('client_id, score, classification')
-          .order('calculated_at', { ascending: false })
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      const { data, error } = await supabase.rpc('get_retention_dashboard');
+      if (error) throw error;
 
-        if (scoresError) throw scoresError;
-        if (data) scores.push(...data);
-        if (!data || data.length < PAGE_SIZE) break;
-        page++;
-      }
+      const d = data as any;
 
-      // Deduplicate: keep only latest per client
-      const latestScores = new Map<string, { score: number; classification: RiskClassification }>();
-      for (const s of (scores || [])) {
-        if (!latestScores.has(s.client_id)) {
-          latestScores.set(s.client_id, {
-            score: Number(s.score),
-            classification: s.classification as RiskClassification,
-          });
-        }
-      }
-
-      // Fetch all pending/active retention actions
-      const { data: actions, error: actionsError } = await supabase
-        .from('retention_actions')
-        .select(`
-          *,
-          client:clients(id, name, company_name, type, assessor_id),
-          playbook:retention_playbooks(id, name)
-        `)
-        .order('due_date', { ascending: true });
-
-      if (actionsError) throw actionsError;
-
-      const allActions = (actions || []) as unknown as RetentionAction[];
-      const pendingActions = allActions.filter(a => a.status === 'pending');
-      const completedActions = allActions.filter(a => a.status === 'completed');
-
-      // Count unique active playbooks (clients with pending actions)
-      const activePlaybookClients = new Set(pendingActions.map(a => `${a.client_id}-${a.playbook_id}`));
-
-      // Churn events for retention rate
-      const { data: churnEvents, error: churnError } = await supabase
-        .from('churn_events')
-        .select('outcome');
-
-      if (churnError) throw churnError;
-
-      const resolvedEvents = (churnEvents || []).filter(e => e.outcome === 'retained' || e.outcome === 'churned');
-      const retainedCount = resolvedEvents.filter(e => e.outcome === 'retained').length;
-      const retentionRate = resolvedEvents.length > 0
-        ? Math.round((retainedCount / resolvedEvents.length) * 100)
-        : 100;
-
-      // Build at-risk clients list
-      const atRiskClients: RetentionDashboardData['atRiskClients'] = [];
-      const atRiskClassifications: RiskClassification[] = ['attention', 'critical', 'lost'];
-
-      // Get client details for at-risk clients
-      const atRiskClientIds = Array.from(latestScores.entries())
-        .filter(([, s]) => atRiskClassifications.includes(s.classification))
-        .map(([id]) => id);
-
-      if (atRiskClientIds.length > 0) {
-        // Fetch clients in chunks of 50 to avoid Supabase URL length limits
-        const CHUNK_SIZE = 50;
-        const allClients: any[] = [];
-        for (let i = 0; i < atRiskClientIds.length; i += CHUNK_SIZE) {
-          const chunk = atRiskClientIds.slice(i, i + CHUNK_SIZE);
-          const { data: clients, error: clientsError } = await supabase
-            .from('clients')
-            .select('id, name, company_name, type, assessor_id')
-            .in('id', chunk)
-            .eq('active', true);
-
-          if (clientsError) throw clientsError;
-          if (clients) allClients.push(...clients);
-        }
-
-        // Get churn events in chunks too
-        const allChurnEvents: any[] = [];
-        for (let i = 0; i < atRiskClientIds.length; i += CHUNK_SIZE) {
-          const chunk = atRiskClientIds.slice(i, i + CHUNK_SIZE);
-          const { data: churnEvts, error: ceError } = await supabase
-            .from('churn_events')
-            .select('client_id, churn_probability')
-            .in('client_id', chunk)
-            .order('predicted_at', { ascending: false });
-
-          if (ceError) throw ceError;
-          if (churnEvts) allChurnEvents.push(...churnEvts);
-        }
-
-        const latestChurn = new Map<string, number>();
-        for (const ce of allChurnEvents) {
-          if (!latestChurn.has(ce.client_id)) {
-            latestChurn.set(ce.client_id, Number(ce.churn_probability));
-          }
-        }
-
-        for (const client of allClients) {
-          const scoreData = latestScores.get(client.id);
-          if (!scoreData) continue;
-
-          const clientActions = pendingActions.filter(a => a.client_id === client.id);
-          const activePlaybook = clientActions.length > 0 && clientActions[0].playbook
-            ? (clientActions[0].playbook as any).name
-            : null;
-
-          atRiskClients.push({
-            clientId: client.id,
-            clientName: client.type === 'pf' ? client.name : (client.company_name || client.name),
-            clientType: client.type as 'pf' | 'pj',
-            healthScore: scoreData.score,
-            classification: scoreData.classification,
-            churnProbability: latestChurn.get(client.id) || null,
-            activePlaybook,
-            nextAction: clientActions[0] || null,
-            assessorId: client.assessor_id,
-          });
-        }
-
-        // Sort by health score ascending (worst first)
-        atRiskClients.sort((a, b) => a.healthScore - b.healthScore);
-      }
+      // Map atRiskClients from RPC (simplified — no nextAction from RPC)
+      const atRiskClients: RetentionDashboardData['atRiskClients'] = (d.atRiskClients || []).map((c: any) => ({
+        clientId: c.clientId,
+        clientName: c.clientName,
+        clientType: c.clientType as 'pf' | 'pj',
+        healthScore: Number(c.healthScore),
+        classification: c.classification as RiskClassification,
+        churnProbability: c.churnProbability != null ? Number(c.churnProbability) : null,
+        activePlaybook: null,
+        nextAction: null,
+        assessorId: c.assessorId,
+      }));
 
       return {
-        clientsAtRisk: atRiskClients.length,
-        activePlaybooks: activePlaybookClients.size,
-        actionsPending: pendingActions.length,
-        actionsCompleted: completedActions.length,
-        retentionRate,
+        clientsAtRisk: Number(d.clientsAtRisk) || 0,
+        activePlaybooks: Number(d.activePlaybooks) || 0,
+        actionsPending: Number(d.actionsPending) || 0,
+        actionsCompleted: Number(d.actionsCompleted) || 0,
+        retentionRate: Number(d.retentionRate) || 100,
         atRiskClients,
       };
     },

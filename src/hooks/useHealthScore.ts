@@ -161,37 +161,24 @@ export function useClientHealthScore(clientId: string) {
   });
 }
 
-// Hook: Get health score summary across all clients
+// Hook: Get health score summary across all clients (uses retention RPC)
 export function useHealthScoresSummary() {
   return useQuery({
     queryKey: ['healthScores', 'summary'],
     queryFn: async (): Promise<HealthScoreSummary> => {
-      // Get most recent score for each client (batch to handle >1000 rows)
-      const scores = await batchFetch('client_health_scores', 'client_id, score, classification');
+      const { data, error } = await supabase.rpc('get_retention_dashboard');
+      if (error) throw error;
 
-      // Deduplicate: keep only latest per client
-      const latestByClient = new Map<string, { score: number; classification: RiskClassification }>();
-      for (const s of (scores || [])) {
-        if (!latestByClient.has(s.client_id)) {
-          latestByClient.set(s.client_id, {
-            score: Number(s.score),
-            classification: s.classification as RiskClassification,
-          });
-        }
-      }
-
-      const all = Array.from(latestByClient.values());
-      const total = all.length;
+      const d = data as any;
+      const hs = d.healthSummary || {};
 
       return {
-        healthy: all.filter(s => s.classification === 'healthy').length,
-        attention: all.filter(s => s.classification === 'attention').length,
-        critical: all.filter(s => s.classification === 'critical').length,
-        lost: all.filter(s => s.classification === 'lost').length,
-        total,
-        averageScore: total > 0
-          ? Math.round(all.reduce((sum, s) => sum + s.score, 0) / total)
-          : 0,
+        healthy: Number(hs.healthy) || 0,
+        attention: Number(hs.attention) || 0,
+        critical: Number(hs.critical) || 0,
+        lost: Number(hs.lost) || 0,
+        total: Number(hs.total) || 0,
+        averageScore: Number(hs.averageScore) || 0,
       };
     },
   });
