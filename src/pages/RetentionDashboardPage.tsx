@@ -477,6 +477,68 @@ export default function RetentionDashboardPage() {
           </CardContent>
         </Card>
 
+        {/* Health Score Methodology */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">📊 Como o Health Score é calculado</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 text-sm">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Recência</span>
+                  <Badge variant="secondary">30%</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Há quanto tempo o cliente gerou receita pela última vez
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Frequência</span>
+                  <Badge variant="secondary">25%</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Quantidade de operações por mês nos últimos 6 meses
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Valor</span>
+                  <Badge variant="secondary">20%</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Receita média mensal comparada com a mediana dos clientes
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Tendência</span>
+                  <Badge variant="secondary">15%</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Crescimento mês a mês da receita (momentum)
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Engajamento</span>
+                  <Badge variant="secondary">10%</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Frequência de interações registradas nos últimos 90 dias
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <span>🟢 <strong>Saudável:</strong> ≥ 75</span>
+              <span>🟡 <strong>Atenção:</strong> 50–74</span>
+              <span>🟠 <strong>Crítico:</strong> 25–49</span>
+              <span>🔴 <strong>Perdido:</strong> &lt; 25</span>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Churn Summary */}
         {churnSummary && churnSummary.totalEvents > 0 && (
           <Card>
