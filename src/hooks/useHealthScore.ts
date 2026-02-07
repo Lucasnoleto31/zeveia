@@ -166,13 +166,8 @@ export function useHealthScoresSummary() {
   return useQuery({
     queryKey: ['healthScores', 'summary'],
     queryFn: async (): Promise<HealthScoreSummary> => {
-      // Get most recent score for each client
-      const { data: scores, error } = await supabase
-        .from('client_health_scores')
-        .select('client_id, score, classification')
-        .order('calculated_at', { ascending: false });
-
-      if (error) throw error;
+      // Get most recent score for each client (batch to handle >1000 rows)
+      const scores = await batchFetch('client_health_scores', 'client_id, score, classification');
 
       // Deduplicate: keep only latest per client
       const latestByClient = new Map<string, { score: number; classification: RiskClassification }>();

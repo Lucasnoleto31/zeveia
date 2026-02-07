@@ -336,13 +336,22 @@ export function useRetentionDashboard() {
   return useQuery({
     queryKey: ['retentionDashboard'],
     queryFn: async (): Promise<RetentionDashboardData> => {
-      // Fetch latest health scores
-      const { data: scores, error: scoresError } = await supabase
-        .from('client_health_scores')
-        .select('client_id, score, classification')
-        .order('calculated_at', { ascending: false });
+      // Fetch latest health scores (batch to handle >1000 rows)
+      const scores: any[] = [];
+      let page = 0;
+      const PAGE_SIZE = 1000;
+      while (true) {
+        const { data, error: scoresError } = await supabase
+          .from('client_health_scores')
+          .select('client_id, score, classification')
+          .order('calculated_at', { ascending: false })
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-      if (scoresError) throw scoresError;
+        if (scoresError) throw scoresError;
+        if (data) scores.push(...data);
+        if (!data || data.length < PAGE_SIZE) break;
+        page++;
+      }
 
       // Deduplicate: keep only latest per client
       const latestScores = new Map<string, { score: number; classification: RiskClassification }>();
@@ -397,31 +406,43 @@ export function useRetentionDashboard() {
         .map(([id]) => id);
 
       if (atRiskClientIds.length > 0) {
-        const { data: clients, error: clientsError } = await supabase
-          .from('clients')
-          .select('id, name, company_name, type, assessor_id')
-          .in('id', atRiskClientIds)
-          .eq('active', true);
+        // Fetch clients in chunks of 50 to avoid Supabase URL length limits
+        const CHUNK_SIZE = 50;
+        const allClients: any[] = [];
+        for (let i = 0; i < atRiskClientIds.length; i += CHUNK_SIZE) {
+          const chunk = atRiskClientIds.slice(i, i + CHUNK_SIZE);
+          const { data: clients, error: clientsError } = await supabase
+            .from('clients')
+            .select('id, name, company_name, type, assessor_id')
+            .in('id', chunk)
+            .eq('active', true);
 
-        if (clientsError) throw clientsError;
+          if (clientsError) throw clientsError;
+          if (clients) allClients.push(...clients);
+        }
 
-        // Get churn events for these clients
-        const { data: clientChurnEvents, error: ceError } = await supabase
-          .from('churn_events')
-          .select('client_id, churn_probability')
-          .in('client_id', atRiskClientIds)
-          .order('predicted_at', { ascending: false });
+        // Get churn events in chunks too
+        const allChurnEvents: any[] = [];
+        for (let i = 0; i < atRiskClientIds.length; i += CHUNK_SIZE) {
+          const chunk = atRiskClientIds.slice(i, i + CHUNK_SIZE);
+          const { data: churnEvts, error: ceError } = await supabase
+            .from('churn_events')
+            .select('client_id, churn_probability')
+            .in('client_id', chunk)
+            .order('predicted_at', { ascending: false });
 
-        if (ceError) throw ceError;
+          if (ceError) throw ceError;
+          if (churnEvts) allChurnEvents.push(...churnEvts);
+        }
 
         const latestChurn = new Map<string, number>();
-        for (const ce of (clientChurnEvents || [])) {
+        for (const ce of allChurnEvents) {
           if (!latestChurn.has(ce.client_id)) {
             latestChurn.set(ce.client_id, Number(ce.churn_probability));
           }
         }
 
-        for (const client of (clients || [])) {
+        for (const client of allClients) {
           const scoreData = latestScores.get(client.id);
           if (!scoreData) continue;
 
