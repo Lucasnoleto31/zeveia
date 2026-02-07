@@ -18,6 +18,10 @@ import {
   Building2
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { HealthScoreBadge } from './HealthScoreBadge';
+import { RiskClassification, HealthScoreComponents } from '@/types/retention';
 
 interface ClientsTableProps {
   clients: Client[];
@@ -32,7 +36,43 @@ const profileColors: Record<string, string> = {
   agressivo: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
 };
 
+// Hook to fetch latest health scores for all clients in bulk
+function useClientsHealthScores(clientIds: string[]) {
+  return useQuery({
+    queryKey: ['healthScores', 'bulk', clientIds.sort().join(',')],
+    queryFn: async () => {
+      if (clientIds.length === 0) return new Map<string, { score: number; classification: RiskClassification; components: HealthScoreComponents }>();
+
+      const { data, error } = await supabase
+        .from('client_health_scores')
+        .select('client_id, score, classification, components')
+        .in('client_id', clientIds)
+        .order('calculated_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Deduplicate: keep only latest per client
+      const map = new Map<string, { score: number; classification: RiskClassification; components: HealthScoreComponents }>();
+      for (const s of (data || [])) {
+        if (!map.has(s.client_id)) {
+          map.set(s.client_id, {
+            score: Number(s.score),
+            classification: s.classification as RiskClassification,
+            components: s.components as unknown as HealthScoreComponents,
+          });
+        }
+      }
+      return map;
+    },
+    enabled: clientIds.length > 0,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
 export function ClientsTable({ clients, onEdit, onView }: ClientsTableProps) {
+  const clientIds = clients.map(c => c.id);
+  const { data: healthScores } = useClientsHealthScores(clientIds);
+
   const formatCurrency = (value?: number) => {
     if (!value) return '-';
     return new Intl.NumberFormat('pt-BR', {
@@ -62,6 +102,7 @@ export function ClientsTable({ clients, onEdit, onView }: ClientsTableProps) {
             <TableHead>Contato</TableHead>
             <TableHead>Perfil</TableHead>
             <TableHead>Patrimônio</TableHead>
+            <TableHead>Saúde</TableHead>
             <TableHead>Parceiro</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
@@ -122,6 +163,18 @@ export function ClientsTable({ clients, onEdit, onView }: ClientsTableProps) {
                 )}
               </TableCell>
               <TableCell>{formatCurrency(client.patrimony)}</TableCell>
+              <TableCell>
+                {healthScores?.get(client.id) ? (
+                  <HealthScoreBadge
+                    score={healthScores.get(client.id)!.score}
+                    classification={healthScores.get(client.id)!.classification}
+                    components={healthScores.get(client.id)!.components}
+                    variant="small"
+                  />
+                ) : (
+                  <span className="text-xs text-muted-foreground">-</span>
+                )}
+              </TableCell>
               <TableCell>
                 {client.partner && (
                   <Badge variant="outline" className="text-xs">

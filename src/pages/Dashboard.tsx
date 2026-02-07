@@ -7,6 +7,8 @@ import { ContractsChart } from '@/components/dashboard/ContractsChart';
 import { ClientsChart } from '@/components/dashboard/ClientsChart';
 import { LeadsPipeline } from '@/components/dashboard/LeadsPipeline';
 import { TasksWidget } from '@/components/dashboard/TasksWidget';
+import { MacroEventsWidget } from '@/components/dashboard/MacroEventsWidget';
+import { LeaderboardWidget } from '@/components/dashboard/LeaderboardWidget';
 import { PeriodFilter } from '@/components/reports/PeriodFilter';
 import { useDashboardMetrics, DashboardPeriodOptions } from '@/hooks/useDashboard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -117,10 +119,12 @@ export default function Dashboard() {
         <ContractsChart periodOptions={periodOptions} />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <ClientsChart periodOptions={periodOptions} />
         {metrics && <LeadsPipeline data={metrics.leadsByStatus} />}
         <TasksWidget />
+        <MacroEventsWidget />
+        <LeaderboardWidget />
       </div>
     </MainLayout>
   );

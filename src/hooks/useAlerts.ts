@@ -214,6 +214,7 @@ export function useGenerateAlerts() {
       }
 
       // 2. Inactive clients (no revenue in 60+ days)
+      // Fixed N+1: Single query to get all revenues, then aggregate in JS
       const sixtyDaysAgo = new Date(today);
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
@@ -222,37 +223,61 @@ export function useGenerateAlerts() {
         .select('id, name, assessor_id')
         .eq('active', true);
 
-      if (activeClients) {
-        for (const client of activeClients) {
-          const { data: recentRevenue } = await supabase
+      if (activeClients && activeClients.length > 0) {
+        // Batch fetch ALL revenues with just client_id and date (lightweight)
+        const PAGE_SIZE = 1000;
+        let allRevenues: { client_id: string; date: string }[] = [];
+        let page = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const from = page * PAGE_SIZE;
+          const to = from + PAGE_SIZE - 1;
+
+          const { data: revBatch, error: revError } = await supabase
             .from('revenues')
-            .select('date')
-            .eq('client_id', client.id)
-            .gte('date', sixtyDaysAgo.toISOString().split('T')[0])
-            .limit(1);
+            .select('client_id, date')
+            .range(from, to);
 
-          if (!recentRevenue || recentRevenue.length === 0) {
-            const { data: lastRevenue } = await supabase
-              .from('revenues')
-              .select('date')
-              .eq('client_id', client.id)
-              .order('date', { ascending: false })
-              .limit(1);
+          if (revError) throw revError;
 
-            if (lastRevenue && lastRevenue.length > 0) {
-              const daysSince = Math.floor(
-                (today.getTime() - new Date(lastRevenue[0].date).getTime()) / (1000 * 60 * 60 * 24)
-              );
-              
-              alerts.push({
-                type: 'inativo',
-                client_id: client.id,
-                message: `⚠️ ${client.name} está inativo há ${daysSince} dias`,
-                read: false,
-                dismissed: false,
-                assessor_id: client.assessor_id,
-              });
-            }
+          if (revBatch && revBatch.length > 0) {
+            allRevenues = [...allRevenues, ...revBatch];
+            hasMore = revBatch.length === PAGE_SIZE;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        // Build a map of client_id -> last revenue date
+        const lastRevenueDateMap = new Map<string, string>();
+        for (const rev of allRevenues) {
+          const existing = lastRevenueDateMap.get(rev.client_id);
+          if (!existing || rev.date > existing) {
+            lastRevenueDateMap.set(rev.client_id, rev.date);
+          }
+        }
+
+        const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0];
+
+        for (const client of activeClients) {
+          const lastRevenueDate = lastRevenueDateMap.get(client.id);
+
+          // Client has revenue but last one is older than 60 days
+          if (lastRevenueDate && lastRevenueDate < sixtyDaysAgoStr) {
+            const daysSince = Math.floor(
+              (today.getTime() - new Date(lastRevenueDate).getTime()) / (1000 * 60 * 60 * 24)
+            );
+
+            alerts.push({
+              type: 'inativo',
+              client_id: client.id,
+              message: `⚠️ ${client.name} está inativo há ${daysSince} dias`,
+              read: false,
+              dismissed: false,
+              assessor_id: client.assessor_id,
+            });
           }
         }
       }

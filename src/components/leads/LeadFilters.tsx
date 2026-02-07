@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -12,6 +13,7 @@ import { useAssessors } from '@/hooks/useProfiles';
 import { Search, X, Users, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LeadType } from '@/hooks/useLeads';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 interface LeadFiltersProps {
   filters: {
@@ -31,6 +33,24 @@ export function LeadFilters({ filters, onFiltersChange, showAssessorFilter }: Le
   const { data: campaigns } = useCampaigns();
   const { data: partners } = usePartners({ active: true });
   const { data: assessors } = useAssessors();
+
+  // Local search state for immediate UI feedback
+  const [localSearch, setLocalSearch] = useState(filters.search);
+  const debouncedSearch = useDebouncedValue(localSearch, 300);
+
+  // Sync debounced search to parent filters
+  useEffect(() => {
+    if (debouncedSearch !== filters.search) {
+      onFiltersChange({ ...filters, search: debouncedSearch });
+    }
+  }, [debouncedSearch]);
+
+  // Sync external filter changes (e.g., clear) to local state
+  useEffect(() => {
+    if (filters.search !== localSearch && filters.search === '') {
+      setLocalSearch('');
+    }
+  }, [filters.search]);
 
   const hasActiveFilters = filters.search || filters.originId || filters.campaignId || filters.partnerId || filters.assessorId || (filters.leadType && filters.leadType !== 'all');
 
@@ -77,8 +97,8 @@ export function LeadFilters({ filters, onFiltersChange, showAssessorFilter }: Le
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar leads..."
-          value={filters.search}
-          onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+          value={localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
           className="pl-9 w-64"
         />
       </div>

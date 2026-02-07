@@ -60,6 +60,14 @@ import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import { InteractionFormDialog } from '@/components/clients/InteractionFormDialog';
 import { CreateOpportunityDialog } from '@/components/clients/CreateOpportunityDialog';
 import { OpportunitiesHistory } from '@/components/clients/OpportunitiesHistory';
+import { HealthScoreBadge } from '@/components/clients/HealthScoreBadge';
+import { LifecycleTimeline } from '@/components/clients/LifecycleTimeline';
+import { useClientHealthScore } from '@/hooks/useHealthScore';
+import { useClientRetentionActions, useCompleteRetentionAction, useSkipRetentionAction } from '@/hooks/useRetention';
+import { useClientChurnRisk } from '@/hooks/useChurnPrediction';
+import { ACTION_TYPE_LABELS, RISK_CLASSIFICATIONS } from '@/types/retention';
+import { toast } from 'sonner';
+import { ShieldAlert, Heart, AlertTriangle, TrendingDown as TrendDown } from 'lucide-react';
 
 const profileEmojis: Record<string, string> = {
   conservador: '🛡️',
@@ -115,6 +123,16 @@ export default function ClientDetailPage() {
   const { data: tasks, isLoading: tasksLoading } = useTasks({ client_id: id });
   const pendingTasks = tasks?.filter(t => t.status !== 'concluida' && t.status !== 'cancelada') || [];
   const completedTasks = tasks?.filter(t => t.status === 'concluida') || [];
+
+  // Health score, churn risk, and retention hooks
+  const { data: healthScore, isLoading: healthScoreLoading } = useClientHealthScore(id!);
+  const { data: churnRisk } = useClientChurnRisk(id!);
+  const { data: retentionActions, isLoading: retentionLoading } = useClientRetentionActions(id!);
+  const completeRetentionAction = useCompleteRetentionAction();
+  const skipRetentionAction = useSkipRetentionAction();
+
+  const pendingRetentionActions = retentionActions?.filter(a => a.status === 'pending') || [];
+  const completedRetentionActions = retentionActions?.filter(a => a.status === 'completed') || [];
 
   const formatCurrency = (value?: number) => {
     if (!value) return 'R$ 0,00';
@@ -191,14 +209,24 @@ export default function ClientDetailPage() {
           </div>
         </div>
 
-        {/* Title */}
-        <div className="flex items-center gap-4">
-          <h1 className="text-3xl font-bold">
-            {client.type === 'pf' ? client.name : client.company_name}
-          </h1>
-          <Badge variant={client.active ? 'default' : 'secondary'} className="text-sm">
-            {client.active ? 'Ativo' : 'Inativo'}
-          </Badge>
+        {/* Title + Health Score */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold">
+              {client.type === 'pf' ? client.name : client.company_name}
+            </h1>
+            <Badge variant={client.active ? 'default' : 'secondary'} className="text-sm">
+              {client.active ? 'Ativo' : 'Inativo'}
+            </Badge>
+          </div>
+          {healthScore && (
+            <HealthScoreBadge
+              score={Number(healthScore.score)}
+              classification={healthScore.classification}
+              components={healthScore.components}
+              variant="large"
+            />
+          )}
         </div>
         <p className="text-muted-foreground -mt-4">
           Cliente desde {format(new Date(client.created_at), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
@@ -857,6 +885,164 @@ export default function ClientDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Churn Risk & Retention Actions Row */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Churn Risk Indicator */}
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle>Risco de Churn</CardTitle>
+                <CardDescription>Análise baseada no health score e tendência</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!churnRisk ? (
+                <div className="py-4 text-center text-muted-foreground text-sm">
+                  Calcule o health score para ver o risco de churn
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Probabilidade de Churn</p>
+                      <p className={`text-3xl font-bold ${
+                        churnRisk.churnProbability >= 60 ? 'text-red-600' :
+                        churnRisk.churnProbability >= 30 ? 'text-orange-600' :
+                        'text-green-600'
+                      }`}>
+                        {churnRisk.churnProbability}%
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Tendência</p>
+                      <Badge variant="outline" className={
+                        churnRisk.trend === 'improving' ? 'text-green-600 border-green-300' :
+                        churnRisk.trend === 'declining' ? 'text-red-600 border-red-300' :
+                        'text-muted-foreground'
+                      }>
+                        {churnRisk.trend === 'improving' ? '↑ Melhorando' :
+                         churnRisk.trend === 'declining' ? '↓ Piorando' :
+                         '→ Estável'}
+                      </Badge>
+                    </div>
+                  </div>
+                  {churnRisk.riskFactors.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Fatores de Risco</p>
+                      {churnRisk.riskFactors.map((factor, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <span className={
+                            factor.severity === 'high' ? 'text-red-500' :
+                            factor.severity === 'medium' ? 'text-orange-500' :
+                            'text-yellow-500'
+                          }>
+                            {factor.severity === 'high' ? '🔴' : factor.severity === 'medium' ? '🟡' : '🟢'}
+                          </span>
+                          <div>
+                            <span className="font-medium">{factor.factor}</span>
+                            <span className="text-muted-foreground"> — {factor.description}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Active Retention Actions */}
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2">
+              <Heart className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle>Ações de Retenção</CardTitle>
+                <CardDescription>
+                  {pendingRetentionActions.length} ação(ões) pendente(s)
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {retentionLoading ? (
+                <Skeleton className="h-20 w-full" />
+              ) : pendingRetentionActions.length === 0 ? (
+                <div className="py-4 text-center text-muted-foreground text-sm">
+                  Nenhuma ação de retenção ativa
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingRetentionActions.map((action) => (
+                    <div key={action.id} className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30">
+                      <span className="text-xl">
+                        {ACTION_TYPE_LABELS[action.action_type]?.icon || '📋'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">
+                            #{action.step_order} {ACTION_TYPE_LABELS[action.action_type]?.label || action.action_type}
+                          </span>
+                          {action.due_date && (
+                            <span className="text-xs text-muted-foreground">
+                              Prazo: {format(new Date(action.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          {action.description}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-green-600"
+                          onClick={() => {
+                            completeRetentionAction.mutate(
+                              { id: action.id },
+                              {
+                                onSuccess: () => toast.success('Ação concluída'),
+                                onError: () => toast.error('Erro ao concluir ação'),
+                              }
+                            );
+                          }}
+                          title="Concluir"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {completedRetentionActions.length > 0 && (
+                <Collapsible className="mt-4">
+                  <CollapsibleTrigger className="text-sm text-muted-foreground hover:underline flex items-center gap-1">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {completedRetentionActions.length} ação(ões) concluída(s)
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 mt-2">
+                    {completedRetentionActions.slice(0, 5).map((action) => (
+                      <div key={action.id} className="flex items-center gap-2 text-sm text-muted-foreground p-2 rounded border bg-muted/20">
+                        <span>{ACTION_TYPE_LABELS[action.action_type]?.icon || '📋'}</span>
+                        <span className="line-through">{action.description}</span>
+                        {action.completed_at && (
+                          <span className="text-xs ml-auto">
+                            {format(new Date(action.completed_at), 'dd/MM', { locale: ptBR })}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Lifecycle Timeline */}
+        <LifecycleTimeline clientId={client.id} />
 
         {/* Fifth Row - Opportunities History */}
         <OpportunitiesHistory 

@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import LeadsPage from "./pages/LeadsPage";
@@ -29,56 +30,74 @@ import RevenuesReportPage from "./pages/RevenuesReportPage";
 import ContractsReportPage from "./pages/ContractsReportPage";
 import PlatformsReportPage from "./pages/PlatformsReportPage";
 import SettingsPage from "./pages/SettingsPage";
+import MacroEventsPage from "./pages/MacroEventsPage";
+import RetentionDashboardPage from "./pages/RetentionDashboardPage";
+import InfluencerPipelinePage from "./pages/InfluencerPipelinePage";
+import InfluencerDetailPage from "./pages/InfluencerDetailPage";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
-              <Route path="/leads/:id" element={<ProtectedRoute><LeadDetailPage /></ProtectedRoute>} />
-              <Route path="/clients" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
-              <Route path="/clients/:id" element={<ProtectedRoute><ClientDetailPage /></ProtectedRoute>} />
-              <Route path="/revenues" element={<ProtectedRoute><RevenuesPage /></ProtectedRoute>} />
-              <Route path="/contracts" element={<ProtectedRoute><ContractsPage /></ProtectedRoute>} />
-              <Route path="/partners" element={<ProtectedRoute><PartnersPage /></ProtectedRoute>} />
-              <Route path="/partners/:id" element={<ProtectedRoute><PartnerDetailPage /></ProtectedRoute>} />
-              <Route path="/platforms" element={<ProtectedRoute><PlatformCostsPage /></ProtectedRoute>} />
-              <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
-              <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
-              <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
-              <Route path="/reports/funnel" element={<ProtectedRoute><FunnelReportPage /></ProtectedRoute>} />
-              <Route path="/reports/opportunities" element={<ProtectedRoute><OpportunitiesReportPage /></ProtectedRoute>} />
-              <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReportPage /></ProtectedRoute>} />
-              <Route path="/reports/roi" element={<ProtectedRoute><PartnerROIReportPage /></ProtectedRoute>} />
-              <Route path="/reports/clients" element={<ProtectedRoute><ClientsReportPage /></ProtectedRoute>} />
-              <Route path="/reports/revenues" element={<ProtectedRoute><RevenuesReportPage /></ProtectedRoute>} />
-              <Route path="/reports/contracts" element={<ProtectedRoute><ContractsReportPage /></ProtectedRoute>} />
-              <Route path="/reports/platforms" element={<ProtectedRoute><PlatformsReportPage /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute requireSocio><SettingsPage /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/auth" element={<Auth />} />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/leads" element={<ProtectedRoute><LeadsPage /></ProtectedRoute>} />
+                <Route path="/leads/:id" element={<ProtectedRoute><LeadDetailPage /></ProtectedRoute>} />
+                <Route path="/clients" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
+                <Route path="/clients/:id" element={<ProtectedRoute><ClientDetailPage /></ProtectedRoute>} />
+                <Route path="/revenues" element={<ProtectedRoute><RevenuesPage /></ProtectedRoute>} />
+                <Route path="/contracts" element={<ProtectedRoute><ContractsPage /></ProtectedRoute>} />
+                <Route path="/partners" element={<ProtectedRoute><PartnersPage /></ProtectedRoute>} />
+                <Route path="/partners/:id" element={<ProtectedRoute><PartnerDetailPage /></ProtectedRoute>} />
+                <Route path="/platforms" element={<ProtectedRoute><PlatformCostsPage /></ProtectedRoute>} />
+                <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
+                <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
+                <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
+                <Route path="/macro-events" element={<ProtectedRoute><MacroEventsPage /></ProtectedRoute>} />
+                <Route path="/retention" element={<ProtectedRoute><RetentionDashboardPage /></ProtectedRoute>} />
+                <Route path="/influencers" element={<ProtectedRoute><InfluencerPipelinePage /></ProtectedRoute>} />
+                <Route path="/influencers/:id" element={<ProtectedRoute><InfluencerDetailPage /></ProtectedRoute>} />
+                <Route path="/reports/funnel" element={<ProtectedRoute><FunnelReportPage /></ProtectedRoute>} />
+                <Route path="/reports/opportunities" element={<ProtectedRoute><OpportunitiesReportPage /></ProtectedRoute>} />
+                <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReportPage /></ProtectedRoute>} />
+                <Route path="/reports/roi" element={<ProtectedRoute><PartnerROIReportPage /></ProtectedRoute>} />
+                <Route path="/reports/clients" element={<ProtectedRoute><ClientsReportPage /></ProtectedRoute>} />
+                <Route path="/reports/revenues" element={<ProtectedRoute><RevenuesReportPage /></ProtectedRoute>} />
+                <Route path="/reports/contracts" element={<ProtectedRoute><ContractsReportPage /></ProtectedRoute>} />
+                <Route path="/reports/platforms" element={<ProtectedRoute><PlatformsReportPage /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute requireSocio><SettingsPage /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

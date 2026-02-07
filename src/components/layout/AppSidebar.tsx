@@ -13,8 +13,12 @@ import {
   Bell,
   BarChart3,
   Calendar,
+  CalendarClock,
   Settings,
   ChevronDown,
+  Heart,
+  Megaphone,
+  Trophy,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -42,6 +46,7 @@ const mainItems = [
   { title: 'Leads', url: '/leads', icon: UserPlus },
   { title: 'Clientes', url: '/clients', icon: Users },
   { title: 'Parceiros', url: '/partners', icon: Handshake },
+  { title: 'Influenciadores', url: '/influencers', icon: Megaphone },
 ];
 
 const financialItems = [
@@ -54,6 +59,8 @@ const managementItems = [
   { title: 'Agenda', url: '/agenda', icon: Calendar },
   { title: 'Metas', url: '/goals', icon: Target },
   { title: 'Alertas', url: '/alerts', icon: Bell },
+  { title: 'Retenção', url: '/retention', icon: Heart },
+  { title: 'Calendário Macro', url: '/macro-events', icon: CalendarClock },
 ];
 
 const reportItems = [

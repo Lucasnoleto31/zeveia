@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { ClientType, InvestorProfile } from '@/types/database';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -39,6 +41,24 @@ export function ClientFilters({ filters, onFiltersChange, showAssessorFilter }: 
   const { data: partners } = usePartners({ active: true });
   const { data: assessors } = useAssessors();
 
+  // Local search state for immediate UI feedback
+  const [localSearch, setLocalSearch] = useState(filters.search);
+  const debouncedSearch = useDebouncedValue(localSearch, 300);
+
+  // Sync debounced search to parent filters
+  useEffect(() => {
+    if (debouncedSearch !== filters.search) {
+      onFiltersChange({ ...filters, search: debouncedSearch });
+    }
+  }, [debouncedSearch]);
+
+  // Sync external filter changes (e.g., clear) to local state
+  useEffect(() => {
+    if (filters.search !== localSearch && filters.search === '') {
+      setLocalSearch('');
+    }
+  }, [filters.search]);
+
   const hasActiveFilters = filters.search || filters.type || filters.profile || 
     filters.state || filters.partnerId || filters.assessorId || filters.active === false;
 
@@ -53,8 +73,8 @@ export function ClientFilters({ filters, onFiltersChange, showAssessorFilter }: 
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Buscar por nome, CPF, CNPJ..."
-          value={filters.search}
-          onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+          value={localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
           className="pl-9 w-64"
         />
       </div>
