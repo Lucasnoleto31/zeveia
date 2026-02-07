@@ -65,6 +65,96 @@ export type Database = {
           },
         ]
       }
+      assessor_badges: {
+        Row: {
+          badge_emoji: string
+          badge_name: string
+          badge_type: string
+          earned_at: string
+          id: string
+          period: string | null
+          user_id: string
+        }
+        Insert: {
+          badge_emoji: string
+          badge_name: string
+          badge_type: string
+          earned_at?: string
+          id?: string
+          period?: string | null
+          user_id: string
+        }
+        Update: {
+          badge_emoji?: string
+          badge_name?: string
+          badge_type?: string
+          earned_at?: string
+          id?: string
+          period?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      assessor_points: {
+        Row: {
+          action_type: string
+          description: string | null
+          earned_at: string
+          id: string
+          points: number
+          reference_id: string | null
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          description?: string | null
+          earned_at?: string
+          id?: string
+          points: number
+          reference_id?: string | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          description?: string | null
+          earned_at?: string
+          id?: string
+          points?: number
+          reference_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      assessor_streaks: {
+        Row: {
+          best_streak: number
+          current_streak: number
+          id: string
+          last_activity_date: string | null
+          streak_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          best_streak?: number
+          current_streak?: number
+          id?: string
+          last_activity_date?: string | null
+          streak_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          best_streak?: number
+          current_streak?: number
+          id?: string
+          last_activity_date?: string | null
+          streak_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       assets: {
         Row: {
           active: boolean
@@ -110,6 +200,47 @@ export type Database = {
         }
         Relationships: []
       }
+      churn_events: {
+        Row: {
+          action_taken: string | null
+          churn_probability: number
+          client_id: string
+          id: string
+          outcome: string | null
+          predicted_at: string
+          resolved_at: string | null
+          risk_factors: Json
+        }
+        Insert: {
+          action_taken?: string | null
+          churn_probability: number
+          client_id: string
+          id?: string
+          outcome?: string | null
+          predicted_at?: string
+          resolved_at?: string | null
+          risk_factors?: Json
+        }
+        Update: {
+          action_taken?: string | null
+          churn_probability?: number
+          client_id?: string
+          id?: string
+          outcome?: string | null
+          predicted_at?: string
+          resolved_at?: string | null
+          risk_factors?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "churn_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_account_mappings: {
         Row: {
           account_number: string
@@ -138,6 +269,88 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "client_account_mappings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_health_scores: {
+        Row: {
+          calculated_at: string
+          classification: Database["public"]["Enums"]["risk_classification"]
+          client_id: string
+          components: Json
+          created_at: string
+          id: string
+          score: number
+        }
+        Insert: {
+          calculated_at?: string
+          classification: Database["public"]["Enums"]["risk_classification"]
+          client_id: string
+          components?: Json
+          created_at?: string
+          id?: string
+          score: number
+        }
+        Update: {
+          calculated_at?: string
+          classification?: Database["public"]["Enums"]["risk_classification"]
+          client_id?: string
+          components?: Json
+          created_at?: string
+          id?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_health_scores_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_lifecycle: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          client_id: string
+          id: string
+          previous_stage:
+            | Database["public"]["Enums"]["client_lifecycle_stage"]
+            | null
+          reason: string | null
+          stage: Database["public"]["Enums"]["client_lifecycle_stage"]
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          client_id: string
+          id?: string
+          previous_stage?:
+            | Database["public"]["Enums"]["client_lifecycle_stage"]
+            | null
+          reason?: string | null
+          stage: Database["public"]["Enums"]["client_lifecycle_stage"]
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          client_id?: string
+          id?: string
+          previous_stage?:
+            | Database["public"]["Enums"]["client_lifecycle_stage"]
+            | null
+          reason?: string | null
+          stage?: Database["public"]["Enums"]["client_lifecycle_stage"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_lifecycle_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
@@ -409,6 +622,219 @@ export type Database = {
         }
         Relationships: []
       }
+      influencer_campaigns: {
+        Row: {
+          accounts_opened: number | null
+          actual_cost: number | null
+          budget: number | null
+          campaign_type: string
+          contracts_generated: number | null
+          created_at: string
+          end_date: string | null
+          id: string
+          influencer_id: string
+          leads_generated: number | null
+          name: string
+          notes: string | null
+          revenue_generated: number | null
+          start_date: string | null
+          status: string
+          tracking_code: string | null
+        }
+        Insert: {
+          accounts_opened?: number | null
+          actual_cost?: number | null
+          budget?: number | null
+          campaign_type: string
+          contracts_generated?: number | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          influencer_id: string
+          leads_generated?: number | null
+          name: string
+          notes?: string | null
+          revenue_generated?: number | null
+          start_date?: string | null
+          status?: string
+          tracking_code?: string | null
+        }
+        Update: {
+          accounts_opened?: number | null
+          actual_cost?: number | null
+          budget?: number | null
+          campaign_type?: string
+          contracts_generated?: number | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          influencer_id?: string
+          leads_generated?: number | null
+          name?: string
+          notes?: string | null
+          revenue_generated?: number | null
+          start_date?: string | null
+          status?: string
+          tracking_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "influencer_campaigns_influencer_id_fkey"
+            columns: ["influencer_id"]
+            isOneToOne: false
+            referencedRelation: "influencer_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      influencer_negotiations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          influencer_id: string
+          interaction_type: string
+          next_action: string | null
+          next_action_date: string | null
+          outcome: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          influencer_id: string
+          interaction_type: string
+          next_action?: string | null
+          next_action_date?: string | null
+          outcome?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          influencer_id?: string
+          interaction_type?: string
+          next_action?: string | null
+          next_action_date?: string | null
+          outcome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "influencer_negotiations_influencer_id_fkey"
+            columns: ["influencer_id"]
+            isOneToOne: false
+            referencedRelation: "influencer_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      influencer_profiles: {
+        Row: {
+          assigned_to: string | null
+          audience_profile: string | null
+          content_style: string | null
+          created_at: string
+          email: string | null
+          engagement_rate: number | null
+          estimated_cpl: number | null
+          estimated_reach: number | null
+          id: string
+          instagram_followers: number | null
+          instagram_handle: string | null
+          monthly_cost_estimate: number | null
+          name: string
+          niche: string[] | null
+          notes: string | null
+          partner_id: string | null
+          phone: string | null
+          proposed_commission: number | null
+          proposed_model: string | null
+          qualification_score: number | null
+          source: string | null
+          stage: Database["public"]["Enums"]["influencer_stage"]
+          tiktok_followers: number | null
+          tiktok_handle: string | null
+          twitter_followers: number | null
+          twitter_handle: string | null
+          updated_at: string
+          youtube_channel: string | null
+          youtube_subscribers: number | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          audience_profile?: string | null
+          content_style?: string | null
+          created_at?: string
+          email?: string | null
+          engagement_rate?: number | null
+          estimated_cpl?: number | null
+          estimated_reach?: number | null
+          id?: string
+          instagram_followers?: number | null
+          instagram_handle?: string | null
+          monthly_cost_estimate?: number | null
+          name: string
+          niche?: string[] | null
+          notes?: string | null
+          partner_id?: string | null
+          phone?: string | null
+          proposed_commission?: number | null
+          proposed_model?: string | null
+          qualification_score?: number | null
+          source?: string | null
+          stage?: Database["public"]["Enums"]["influencer_stage"]
+          tiktok_followers?: number | null
+          tiktok_handle?: string | null
+          twitter_followers?: number | null
+          twitter_handle?: string | null
+          updated_at?: string
+          youtube_channel?: string | null
+          youtube_subscribers?: number | null
+        }
+        Update: {
+          assigned_to?: string | null
+          audience_profile?: string | null
+          content_style?: string | null
+          created_at?: string
+          email?: string | null
+          engagement_rate?: number | null
+          estimated_cpl?: number | null
+          estimated_reach?: number | null
+          id?: string
+          instagram_followers?: number | null
+          instagram_handle?: string | null
+          monthly_cost_estimate?: number | null
+          name?: string
+          niche?: string[] | null
+          notes?: string | null
+          partner_id?: string | null
+          phone?: string | null
+          proposed_commission?: number | null
+          proposed_model?: string | null
+          qualification_score?: number | null
+          source?: string | null
+          stage?: Database["public"]["Enums"]["influencer_stage"]
+          tiktok_followers?: number | null
+          tiktok_handle?: string | null
+          twitter_followers?: number | null
+          twitter_handle?: string | null
+          updated_at?: string
+          youtube_channel?: string | null
+          youtube_subscribers?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "influencer_profiles_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interactions: {
         Row: {
           client_id: string | null
@@ -587,6 +1013,42 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      macro_events: {
+        Row: {
+          country: string
+          created_at: string
+          description: string | null
+          event_date: string
+          event_type: Database["public"]["Enums"]["macro_event_type"]
+          id: string
+          impact_level: Database["public"]["Enums"]["impact_level"]
+          name: string
+          recurring: boolean
+        }
+        Insert: {
+          country?: string
+          created_at?: string
+          description?: string | null
+          event_date: string
+          event_type: Database["public"]["Enums"]["macro_event_type"]
+          id?: string
+          impact_level?: Database["public"]["Enums"]["impact_level"]
+          name: string
+          recurring?: boolean
+        }
+        Update: {
+          country?: string
+          created_at?: string
+          description?: string | null
+          event_date?: string
+          event_type?: Database["public"]["Enums"]["macro_event_type"]
+          id?: string
+          impact_level?: Database["public"]["Enums"]["impact_level"]
+          name?: string
+          recurring?: boolean
         }
         Relationships: []
       }
@@ -811,6 +1273,106 @@ export type Database = {
         }
         Relationships: []
       }
+      retention_actions: {
+        Row: {
+          action_type: string
+          assigned_to: string | null
+          churn_event_id: string | null
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          description: string
+          due_date: string | null
+          id: string
+          notes: string | null
+          playbook_id: string | null
+          status: string
+          step_order: number
+        }
+        Insert: {
+          action_type: string
+          assigned_to?: string | null
+          churn_event_id?: string | null
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          description: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          playbook_id?: string | null
+          status?: string
+          step_order: number
+        }
+        Update: {
+          action_type?: string
+          assigned_to?: string | null
+          churn_event_id?: string | null
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          playbook_id?: string | null
+          status?: string
+          step_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_actions_churn_event_id_fkey"
+            columns: ["churn_event_id"]
+            isOneToOne: false
+            referencedRelation: "churn_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_actions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_actions_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "retention_playbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retention_playbooks: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          risk_classification: Database["public"]["Enums"]["risk_classification"]
+          steps: Json
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          risk_classification: Database["public"]["Enums"]["risk_classification"]
+          steps?: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          risk_classification?: Database["public"]["Enums"]["risk_classification"]
+          steps?: Json
+        }
+        Relationships: []
+      }
       revenues: {
         Row: {
           bank_share: number
@@ -1015,7 +1577,24 @@ export type Database = {
     Enums: {
       alert_type: "aniversario" | "inativo" | "follow_up" | "cross_selling"
       app_role: "socio" | "assessor"
+      client_lifecycle_stage:
+        | "onboarding"
+        | "active"
+        | "at_risk"
+        | "churning"
+        | "churned"
+        | "reactivated"
       client_type: "pf" | "pj"
+      impact_level: "high" | "medium" | "low"
+      influencer_stage:
+        | "identified"
+        | "researching"
+        | "contacted"
+        | "negotiating"
+        | "contracted"
+        | "active"
+        | "paused"
+        | "lost"
       investor_profile: "conservador" | "moderado" | "arrojado" | "agressivo"
       lead_status:
         | "novo"
@@ -1023,6 +1602,17 @@ export type Database = {
         | "troca_assessoria"
         | "convertido"
         | "perdido"
+      macro_event_type:
+        | "fomc"
+        | "copom"
+        | "payroll"
+        | "cpi"
+        | "ipca"
+        | "pib"
+        | "earnings"
+        | "options_expiry"
+        | "contract_rollover"
+        | "other"
       marital_status:
         | "solteiro"
         | "casado"
@@ -1030,6 +1620,7 @@ export type Database = {
         | "viuvo"
         | "uniao_estavel"
       partner_type: "parceiro" | "influenciador"
+      risk_classification: "healthy" | "attention" | "critical" | "lost"
       sex: "masculino" | "feminino" | "outro"
     }
     CompositeTypes: {
@@ -1160,7 +1751,26 @@ export const Constants = {
     Enums: {
       alert_type: ["aniversario", "inativo", "follow_up", "cross_selling"],
       app_role: ["socio", "assessor"],
+      client_lifecycle_stage: [
+        "onboarding",
+        "active",
+        "at_risk",
+        "churning",
+        "churned",
+        "reactivated",
+      ],
       client_type: ["pf", "pj"],
+      impact_level: ["high", "medium", "low"],
+      influencer_stage: [
+        "identified",
+        "researching",
+        "contacted",
+        "negotiating",
+        "contracted",
+        "active",
+        "paused",
+        "lost",
+      ],
       investor_profile: ["conservador", "moderado", "arrojado", "agressivo"],
       lead_status: [
         "novo",
@@ -1168,6 +1778,18 @@ export const Constants = {
         "troca_assessoria",
         "convertido",
         "perdido",
+      ],
+      macro_event_type: [
+        "fomc",
+        "copom",
+        "payroll",
+        "cpi",
+        "ipca",
+        "pib",
+        "earnings",
+        "options_expiry",
+        "contract_rollover",
+        "other",
       ],
       marital_status: [
         "solteiro",
@@ -1177,6 +1799,7 @@ export const Constants = {
         "uniao_estavel",
       ],
       partner_type: ["parceiro", "influenciador"],
+      risk_classification: ["healthy", "attention", "critical", "lost"],
       sex: ["masculino", "feminino", "outro"],
     },
   },
