@@ -48,22 +48,22 @@ BEGIN
     'totalRevenue', (
       SELECT COALESCE(sum(our_share), 0)
       FROM revenues
-      WHERE date >= v_start AND date <= v_end
+      WHERE date::text >= v_start AND date::text <= v_end
     ),
     'monthlyRevenue', (
       SELECT COALESCE(sum(our_share), 0)
       FROM revenues
-      WHERE date LIKE left(v_end, 7) || '%'
+      WHERE date::text LIKE left(v_end, 7) || '%'
     ),
     'totalLotsTraded', (
       SELECT COALESCE(sum(lots_traded), 0)
       FROM contracts
-      WHERE date >= v_start AND date <= v_end
+      WHERE date::text >= v_start AND date::text <= v_end
     ),
     'totalLotsZeroed', (
       SELECT COALESCE(sum(lots_zeroed), 0)
       FROM contracts
-      WHERE date >= v_start AND date <= v_end
+      WHERE date::text >= v_start AND date::text <= v_end
     )
   ) INTO v_result;
 
@@ -111,8 +111,8 @@ BEGIN
       date_trunc('month', v_end::date),
       '1 month'::interval
     ) AS m(d)
-    LEFT JOIN revenues r ON left(r.date, 7) = to_char(m.d, 'YYYY-MM')
-      AND r.date >= v_start AND r.date <= v_end
+    LEFT JOIN revenues r ON left(r.date::text, 7) = to_char(m.d, 'YYYY-MM')
+      AND r.date::text >= v_start AND r.date::text <= v_end
     GROUP BY m.d
   ) sub;
 
@@ -161,8 +161,8 @@ BEGIN
       date_trunc('month', v_end::date),
       '1 month'::interval
     ) AS m(d)
-    LEFT JOIN contracts c ON left(c.date, 7) = to_char(m.d, 'YYYY-MM')
-      AND c.date >= v_start AND c.date <= v_end
+    LEFT JOIN contracts c ON left(c.date::text, 7) = to_char(m.d, 'YYYY-MM')
+      AND c.date::text >= v_start AND c.date::text <= v_end
     GROUP BY m.d
   ) sub;
 
@@ -211,9 +211,9 @@ BEGIN
       '1 month'::interval
     ) AS m(d)
     LEFT JOIN (
-      SELECT left(date, 7) AS ym, count(DISTINCT client_id) AS cnt
+      SELECT left(date::text, 7) AS ym, count(DISTINCT client_id) AS cnt
       FROM revenues
-      WHERE date >= v_start AND date <= v_end
+      WHERE date::text >= v_start AND date::text <= v_end
       GROUP BY left(date, 7)
     ) rc ON rc.ym = to_char(m.d, 'YYYY-MM')
   ) sub;
