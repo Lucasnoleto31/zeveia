@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import * as XLSX from 'xlsx';
+// XLSX is dynamically imported where needed to reduce bundle size
 import {
   Dialog,
   DialogContent,
@@ -93,7 +93,8 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
     const template = [
       {
         Data: '2024-01-15',
@@ -121,8 +122,9 @@ export function ImportRevenuesDialog({ open, onOpenChange }: ImportRevenuesDialo
     setIsProcessing(true);
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
+        const XLSX = await import('xlsx');
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
