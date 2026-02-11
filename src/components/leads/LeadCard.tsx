@@ -32,7 +32,6 @@ export function LeadCard({ lead, onEdit, isDragging, selectable, selected, onSel
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: lead.id,
-    disabled: lead.status === 'convertido' || lead.status === 'perdido',
   });
 
   const style = transform
@@ -40,8 +39,6 @@ export function LeadCard({ lead, onEdit, isDragging, selectable, selected, onSel
         transform: CSS.Translate.toString(transform),
       }
     : undefined;
-
-  const isFinalized = lead.status === 'convertido' || lead.status === 'perdido';
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on edit button or drag handle
@@ -55,10 +52,8 @@ export function LeadCard({ lead, onEdit, isDragging, selectable, selected, onSel
       style={style}
       onClick={handleCardClick}
       className={cn(
-        'cursor-pointer transition-shadow hover:shadow-md',
-        !isFinalized && 'cursor-grab active:cursor-grabbing',
+        'cursor-pointer transition-shadow hover:shadow-md cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-50 shadow-lg rotate-2',
-        isFinalized && 'opacity-70 cursor-default'
       )}
     >
       <CardContent className="p-3">
@@ -74,20 +69,18 @@ export function LeadCard({ lead, onEdit, isDragging, selectable, selected, onSel
               className="mt-0.5"
             />
           )}
-          {!isFinalized && (
-            <button
-              {...attributes}
-              {...listeners}
-              className="mt-0.5 text-muted-foreground hover:text-foreground cursor-grab"
-            >
-              <GripVertical className="h-4 w-4" />
-            </button>
-          )}
+          <button
+            {...attributes}
+            {...listeners}
+            className="mt-0.5 text-muted-foreground hover:text-foreground cursor-grab"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
               <h4 className="font-medium text-sm truncate">{lead.name}</h4>
               <div className="flex items-center gap-1">
-                {onEdit && !isFinalized && (
+                {onEdit && (
                   <Button
                     variant="ghost"
                     size="icon"

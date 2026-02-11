@@ -103,12 +103,6 @@ export default function LeadsPage() {
     const lead = leads?.find((l) => l.id === leadId);
     if (!lead || lead.status === newStatus) return;
 
-    // Prevent moving from convertido/perdido
-    if (lead.status === 'convertido' || lead.status === 'perdido') {
-      toast.error('Não é possível mover leads já finalizados');
-      return;
-    }
-
     try {
       await updateLead.mutateAsync({
         id: leadId,
