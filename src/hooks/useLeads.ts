@@ -156,6 +156,21 @@ export function useUpdateLead() {
   });
 }
 
+export function useBulkUpdateLeads() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, data }: { ids: string[]; data: Record<string, any> }) => {
+      const updates = ids.map(id =>
+        supabase.from('leads').update(data).eq('id', id)
+      );
+      const results = await Promise.all(updates);
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) throw errors[0].error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads'] }),
+  });
+}
+
 export function useDeleteLead() {
   const queryClient = useQueryClient();
   return useMutation({

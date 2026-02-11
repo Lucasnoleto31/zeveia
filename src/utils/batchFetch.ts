@@ -42,8 +42,7 @@ export async function batchFetch<T = any>(
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    let query = supabase
-      .from(table)
+    let query = (supabase.from as any)(table)
       .select(select)
       .range(from, to);
 

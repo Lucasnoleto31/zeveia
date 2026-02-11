@@ -49,7 +49,7 @@ export function useCreateChurnEvent() {
     mutationFn: async (event: Omit<ChurnEvent, 'id' | 'predicted_at' | 'client'>) => {
       const { data, error } = await supabase
         .from('churn_events')
-        .insert(event)
+        .insert(event as any)
         .select()
         .single();
 
@@ -70,7 +70,7 @@ export function useUpdateChurnEvent() {
     mutationFn: async ({ id, ...updates }: Partial<ChurnEvent> & { id: string }) => {
       const { data, error } = await supabase
         .from('churn_events')
-        .update(updates)
+        .update(updates as any)
         .eq('id', id)
         .select()
         .single();

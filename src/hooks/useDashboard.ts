@@ -21,7 +21,7 @@ export function useDashboardMetrics(options: DashboardPeriodOptions = { months: 
   return useQuery({
     queryKey: ['dashboardMetrics', months, startDate, endDate],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_dashboard_metrics', rpcParams(options));
+      const { data, error } = await (supabase.rpc as any)('get_dashboard_metrics', rpcParams(options));
       if (error) throw error;
       const d = data as any;
       return {
@@ -45,9 +45,9 @@ export function useRevenueChart(options: DashboardPeriodOptions = { months: 12 }
   return useQuery({
     queryKey: ['revenueChart', months, startDate, endDate],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_revenue_chart', rpcParams(options));
+      const { data, error } = await (supabase.rpc as any)('get_revenue_chart', rpcParams(options));
       if (error) throw error;
-      return (data as any[]).map((d: any) => ({
+      return ((data || []) as any[]).map((d: any) => ({
         month: d.month,
         value: Number(d.value) || 0,
       }));
@@ -61,9 +61,9 @@ export function useContractsChart(options: DashboardPeriodOptions = { months: 12
   return useQuery({
     queryKey: ['contractsChart', months, startDate, endDate],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_contracts_chart', rpcParams(options));
+      const { data, error } = await (supabase.rpc as any)('get_contracts_chart', rpcParams(options));
       if (error) throw error;
-      return (data as any[]).map((d: any) => ({
+      return ((data || []) as any[]).map((d: any) => ({
         month: d.month,
         girados: Number(d.girados) || 0,
         zerados: Number(d.zerados) || 0,
@@ -78,9 +78,9 @@ export function useClientsChart(options: DashboardPeriodOptions = { months: 12 }
   return useQuery({
     queryKey: ['clientsChart', months, startDate, endDate],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_clients_chart', rpcParams(options));
+      const { data, error } = await (supabase.rpc as any)('get_clients_chart', rpcParams(options));
       if (error) throw error;
-      return (data as any[]).map((d: any) => ({
+      return ((data || []) as any[]).map((d: any) => ({
         month: d.month,
         clientes: Number(d.clientes) || 0,
       }));

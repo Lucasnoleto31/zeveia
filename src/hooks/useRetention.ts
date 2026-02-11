@@ -57,7 +57,7 @@ export function useCreatePlaybook() {
     mutationFn: async (playbook: Omit<RetentionPlaybook, 'id' | 'created_at'>) => {
       const { data, error } = await supabase
         .from('retention_playbooks')
-        .insert(playbook)
+        .insert(playbook as any)
         .select()
         .single();
 
@@ -77,7 +77,7 @@ export function useUpdatePlaybook() {
     mutationFn: async ({ id, ...updates }: Partial<RetentionPlaybook> & { id: string }) => {
       const { data, error } = await supabase
         .from('retention_playbooks')
-        .update(updates)
+        .update(updates as any)
         .eq('id', id)
         .select()
         .single();
@@ -336,7 +336,7 @@ export function useRetentionDashboard() {
   return useQuery({
     queryKey: ['retentionDashboard'],
     queryFn: async (): Promise<RetentionDashboardData> => {
-      const { data, error } = await supabase.rpc('get_retention_dashboard');
+      const { data, error } = await (supabase.rpc as any)('get_retention_dashboard');
       if (error) throw error;
 
       const d = data as any;
