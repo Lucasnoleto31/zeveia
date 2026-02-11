@@ -1,1 +1,4 @@
 project_id = "albzytzkcgkodfwjulyg"
+
+[functions.auto-mark-lost-leads]
+verify_jwt = false

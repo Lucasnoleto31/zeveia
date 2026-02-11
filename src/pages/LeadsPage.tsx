@@ -134,10 +134,14 @@ export default function LeadsPage() {
     });
   };
 
-  const novoLeads = getLeadsByStatus('novo');
+  const selectableLeads = [
+    ...getLeadsByStatus('novo'),
+    ...getLeadsByStatus('em_contato'),
+    ...getLeadsByStatus('troca_assessoria'),
+  ];
 
   const handleSelectAll = () => {
-    setSelectedLeadIds(new Set(novoLeads.map(l => l.id)));
+    setSelectedLeadIds(new Set(selectableLeads.map(l => l.id)));
   };
 
   const handleDeselectAll = () => {
@@ -197,7 +201,7 @@ export default function LeadsPage() {
                       key={lead.id}
                       lead={lead}
                       onEdit={() => handleEdit(lead)}
-                      selectable={column.id === 'novo'}
+                      selectable={['novo', 'em_contato', 'troca_assessoria'].includes(column.id)}
                       selected={selectedLeadIds.has(lead.id)}
                       onSelect={handleSelectLead}
                     />
