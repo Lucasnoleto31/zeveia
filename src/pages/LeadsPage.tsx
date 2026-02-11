@@ -17,11 +17,12 @@ import { KanbanColumn } from '@/components/leads/KanbanColumn';
 import { LeadCard } from '@/components/leads/LeadCard';
 import { LeadFilters } from '@/components/leads/LeadFilters';
 import { LeadFormDialog } from '@/components/leads/LeadFormDialog';
+import { BulkMarkAsLostDialog } from '@/components/leads/BulkMarkAsLostDialog';
 import { useLeads, useUpdateLead, LeadType } from '@/hooks/useLeads';
 import { useAuth } from '@/contexts/AuthContext';
 import { Lead, LeadStatus } from '@/types/database';
 import { Button } from '@/components/ui/button';
-import { Plus, Upload, Download, Loader2 } from 'lucide-react';
+import { Plus, Upload, Loader2, X, Trash2, CheckSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImportLeadsDialog } from '@/components/leads/ImportLeadsDialog';
 
@@ -49,6 +50,8 @@ export default function LeadsPage() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [isBulkLostOpen, setIsBulkLostOpen] = useState(false);
 
   const { data: leads, isLoading } = useLeads({
     search: filters.search || undefined,
@@ -128,6 +131,29 @@ export default function LeadsPage() {
     setEditingLead(null);
   };
 
+  const handleSelectLead = (id: string, checked: boolean) => {
+    setSelectedLeadIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const novoLeads = getLeadsByStatus('novo');
+
+  const handleSelectAll = () => {
+    setSelectedLeadIds(new Set(novoLeads.map(l => l.id)));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedLeadIds(new Set());
+  };
+
+  const handleBulkLostSuccess = () => {
+    setSelectedLeadIds(new Set());
+  };
+
   return (
     <MainLayout title="Leads">
       <div className="space-y-6">
@@ -177,6 +203,9 @@ export default function LeadsPage() {
                       key={lead.id}
                       lead={lead}
                       onEdit={() => handleEdit(lead)}
+                      selectable={column.id === 'novo'}
+                      selected={selectedLeadIds.has(lead.id)}
+                      onSelect={handleSelectLead}
                     />
                   ))}
                 </KanbanColumn>
@@ -203,6 +232,35 @@ export default function LeadsPage() {
         open={isImportOpen}
         onOpenChange={setIsImportOpen}
       />
+
+      <BulkMarkAsLostDialog
+        open={isBulkLostOpen}
+        onOpenChange={setIsBulkLostOpen}
+        selectedIds={selectedLeadIds}
+        onSuccess={handleBulkLostSuccess}
+      />
+
+      {/* Bulk Action Bar */}
+      {selectedLeadIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-foreground text-background rounded-lg shadow-xl px-6 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-4">
+          <span className="text-sm font-medium">
+            {selectedLeadIds.size} lead(s) selecionado(s)
+          </span>
+          <div className="h-4 w-px bg-background/30" />
+          <Button size="sm" variant="ghost" className="text-background hover:text-background/80 hover:bg-background/10" onClick={handleSelectAll}>
+            <CheckSquare className="h-4 w-4 mr-1" />
+            Selecionar todos
+          </Button>
+          <Button size="sm" variant="ghost" className="text-background hover:text-background/80 hover:bg-background/10" onClick={handleDeselectAll}>
+            <X className="h-4 w-4 mr-1" />
+            Limpar
+          </Button>
+          <Button size="sm" variant="destructive" onClick={() => setIsBulkLostOpen(true)}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            Marcar como Perdido
+          </Button>
+        </div>
+      )}
     </MainLayout>
   );
 }

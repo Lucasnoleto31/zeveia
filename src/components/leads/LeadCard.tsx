@@ -5,6 +5,7 @@ import { Lead } from '@/types/database';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { 
   Phone, 
@@ -22,9 +23,12 @@ interface LeadCardProps {
   lead: Lead;
   onEdit?: () => void;
   isDragging?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string, checked: boolean) => void;
 }
 
-export function LeadCard({ lead, onEdit, isDragging }: LeadCardProps) {
+export function LeadCard({ lead, onEdit, isDragging, selectable, selected, onSelect }: LeadCardProps) {
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: lead.id,
@@ -60,6 +64,16 @@ export function LeadCard({ lead, onEdit, isDragging }: LeadCardProps) {
       <CardContent className="p-3">
         {/* Header with drag handle */}
         <div className="flex items-start gap-2">
+          {selectable && (
+            <Checkbox
+              checked={selected}
+              onCheckedChange={(checked) => {
+                onSelect?.(lead.id, !!checked);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-0.5"
+            />
+          )}
           {!isFinalized && (
             <button
               {...attributes}

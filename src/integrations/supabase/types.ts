@@ -1565,6 +1565,23 @@ export type Database = {
     }
     Functions: {
       get_assessor_filter: { Args: never; Returns: string }
+      get_clients_chart: {
+        Args: { p_end_date?: string; p_months?: number; p_start_date?: string }
+        Returns: Json
+      }
+      get_contracts_chart: {
+        Args: { p_end_date?: string; p_months?: number; p_start_date?: string }
+        Returns: Json
+      }
+      get_dashboard_metrics: {
+        Args: { p_end_date?: string; p_months?: number; p_start_date?: string }
+        Returns: Json
+      }
+      get_retention_dashboard: { Args: never; Returns: Json }
+      get_revenue_chart: {
+        Args: { p_end_date?: string; p_months?: number; p_start_date?: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

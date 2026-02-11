@@ -102,7 +102,7 @@ async function batchFetch(table: string, select: string, filters?: Record<string
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    let query = supabase.from(table).select(select).range(from, to);
+    let query = (supabase.from as any)(table).select(select).range(from, to);
 
     if (filters) {
       for (const [key, value] of Object.entries(filters)) {
@@ -166,7 +166,7 @@ export function useHealthScoresSummary() {
   return useQuery({
     queryKey: ['healthScores', 'summary'],
     queryFn: async (): Promise<HealthScoreSummary> => {
-      const { data, error } = await supabase.rpc('get_retention_dashboard');
+      const { data, error } = await (supabase.rpc as any)('get_retention_dashboard');
       if (error) throw error;
 
       const d = data as any;
@@ -294,7 +294,7 @@ export function useBulkHealthScores() {
       const CHUNK_SIZE = 500;
       for (let i = 0; i < scoresToInsert.length; i += CHUNK_SIZE) {
         const chunk = scoresToInsert.slice(i, i + CHUNK_SIZE);
-        const { error } = await supabase.from('client_health_scores').insert(chunk);
+        const { error } = await supabase.from('client_health_scores').insert(chunk as any);
         if (error) throw error;
       }
 
@@ -385,15 +385,15 @@ async function calculateClientHealthScore(clientId: string): Promise<ClientHealt
   const classification = classifyScore(score);
 
   // Persist the calculated score
-  const { data: inserted, error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await supabase
     .from('client_health_scores')
     .insert({
       client_id: clientId,
       score,
       classification,
-      components,
+      components: components as any,
       calculated_at: now.toISOString(),
-    })
+    } as any)
     .select()
     .single();
 
