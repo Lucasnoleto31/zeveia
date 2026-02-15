@@ -277,11 +277,15 @@ export function useStartPlaybook() {
       playbookId,
       churnEventId,
       assignedTo,
+      clientName,
+      assessorId,
     }: {
       clientId: string;
       playbookId: string;
       churnEventId?: string;
       assignedTo?: string;
+      clientName?: string;
+      assessorId?: string;
     }) => {
       // Fetch playbook
       const { data: playbook, error: pbError } = await supabase
@@ -319,11 +323,31 @@ export function useStartPlaybook() {
         .select();
 
       if (error) throw error;
+
+      // Criar lead/oportunidade automaticamente no CRM
+      if (clientName && assessorId) {
+        const { error: leadError } = await supabase
+          .from('leads')
+          .insert({
+            name: `${clientName} - Retenção`,
+            client_id: clientId,
+            status: 'em_contato' as const,
+            assessor_id: assessorId,
+            observations: `Lead criado automaticamente via playbook "${playbook.name}"`,
+          });
+
+        if (leadError) {
+          console.error('Erro ao criar lead de retenção:', leadError);
+        }
+      }
+
       return data as unknown as RetentionAction[];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['retentionActions'] });
       queryClient.invalidateQueries({ queryKey: ['retentionDashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['clientOpportunities'] });
     },
   });
 }
