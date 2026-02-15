@@ -91,11 +91,17 @@ export default function RetentionDashboardPage() {
   const handleStartPlaybook = () => {
     if (!selectedClient || !selectedPlaybookId) return;
 
+    const selectedPb = playbooks?.find(p => p.id === selectedPlaybookId);
     startPlaybook.mutate(
-      { clientId: selectedClient.clientId, playbookId: selectedPlaybookId },
+      {
+        clientId: selectedClient.clientId,
+        playbookId: selectedPlaybookId,
+        clientName: selectedClient.clientName,
+        assessorId: selectedClient.assessorId,
+      },
       {
         onSuccess: () => {
-          toast.success(`Playbook iniciado para ${selectedClient.clientName}`);
+          toast.success(`Playbook iniciado e lead criado no CRM para ${selectedClient.clientName}`);
           setPlaybookDialogOpen(false);
           setSelectedClient(null);
           setSelectedPlaybookId('');
