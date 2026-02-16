@@ -19,6 +19,7 @@ import {
   Heart,
   Megaphone,
   Trophy,
+  TrendingUp,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -61,6 +62,7 @@ const managementItems = [
   { title: 'Alertas', url: '/alerts', icon: Bell },
   { title: 'Retenção', url: '/retention', icon: Heart },
   { title: 'Calendário Macro', url: '/macro-events', icon: CalendarClock },
+  { title: 'Wealth', url: '/wealth', icon: TrendingUp },
 ];
 
 const reportItems = [
