@@ -15,8 +15,10 @@ import {
   Phone, 
   Mail,
   User,
-  Building2
+  Building2,
+  UserX
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,6 +29,7 @@ interface ClientsTableProps {
   clients: Client[];
   onEdit: (client: Client) => void;
   onView: (client: Client) => void;
+  onDeactivate?: (client: Client) => void;
 }
 
 const profileColors: Record<string, string> = {
@@ -69,7 +72,7 @@ function useClientsHealthScores(clientIds: string[]) {
   });
 }
 
-export function ClientsTable({ clients, onEdit, onView }: ClientsTableProps) {
+export function ClientsTable({ clients, onEdit, onView, onDeactivate }: ClientsTableProps) {
   const clientIds = clients.map(c => c.id);
   const { data: healthScores } = useClientsHealthScores(clientIds);
 
@@ -200,6 +203,21 @@ export function ClientsTable({ clients, onEdit, onView }: ClientsTableProps) {
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  {client.active && onDeactivate && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => onDeactivate(client)}
+                        >
+                          <UserX className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Inativar cliente</TooltipContent>
+                    </Tooltip>
+                  )}
                 </div>
               </TableCell>
             </TableRow>
