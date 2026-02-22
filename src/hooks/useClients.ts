@@ -243,6 +243,81 @@ export function useDeleteClient() {
   });
 }
 
+export function useDeactivateInactiveClients() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - 90);
+      const cutoff = cutoffDate.toISOString().slice(0, 10);
+
+      // 1. Get client IDs with revenue in last 90 days
+      const { data: recentRevenues, error: revError } = await supabase
+        .from('revenues')
+        .select('client_id')
+        .gte('date', cutoff);
+      if (revError) throw revError;
+
+      const activeClientIds = new Set((recentRevenues || []).map(r => r.client_id));
+
+      // 2. Get all active clients
+      const { data: activeClients, error: clientsError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('active', true);
+      if (clientsError) throw clientsError;
+
+      // 3. Filter clients without recent revenue
+      const toDeactivate = (activeClients || [])
+        .filter(c => !activeClientIds.has(c.id))
+        .map(c => c.id);
+
+      if (toDeactivate.length === 0) return { count: 0 };
+
+      // 4. Batch update in chunks of 100
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < toDeactivate.length; i += CHUNK_SIZE) {
+        const chunk = toDeactivate.slice(i, i + CHUNK_SIZE);
+        const { error } = await supabase
+          .from('clients')
+          .update({ active: false })
+          .in('id', chunk);
+        if (error) throw error;
+      }
+
+      return { count: toDeactivate.length };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+  });
+}
+
+export function useFetchInactiveClientsCount() {
+  return useMutation({
+    mutationFn: async () => {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - 90);
+      const cutoff = cutoffDate.toISOString().slice(0, 10);
+
+      const { data: recentRevenues, error: revError } = await supabase
+        .from('revenues')
+        .select('client_id')
+        .gte('date', cutoff);
+      if (revError) throw revError;
+
+      const activeClientIds = new Set((recentRevenues || []).map(r => r.client_id));
+
+      const { data: activeClients, error: clientsError } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('active', true);
+      if (clientsError) throw clientsError;
+
+      const count = (activeClients || []).filter(c => !activeClientIds.has(c.id)).length;
+      return { count };
+    },
+  });
+}
+
 export function useImportClients() {
   const queryClient = useQueryClient();
   return useMutation({

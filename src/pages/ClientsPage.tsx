@@ -7,14 +7,25 @@ import { ClientFormDialog } from '@/components/clients/ClientFormDialog';
 import { ImportClientsDialog } from '@/components/clients/ImportClientsDialog';
 import { MergeClientsDialog } from '@/components/clients/MergeClientsDialog';
 import { DataTablePagination } from '@/components/shared/DataTablePagination';
-import { useClientsPaginated, useClients } from '@/hooks/useClients';
+import { useClientsPaginated, useClients, useUpdateClient, useDeactivateInactiveClients, useFetchInactiveClientsCount } from '@/hooks/useClients';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFindDuplicates } from '@/hooks/useMergeClients';
 import { Client, ClientType, InvestorProfile } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Upload, Users, Building2, Loader2, GitMerge } from 'lucide-react';
+import { Plus, Upload, Users, Building2, Loader2, GitMerge, UserX } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from '@/hooks/use-toast';
 
 interface ClientFiltersState {
   search: string;
@@ -37,6 +48,13 @@ export default function ClientsPage() {
   const [isMergeOpen, setIsMergeOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formType, setFormType] = useState<ClientType>('pf');
+  const [deactivatingClient, setDeactivatingClient] = useState<Client | null>(null);
+  const [bulkDeactivateOpen, setBulkDeactivateOpen] = useState(false);
+  const [bulkCount, setBulkCount] = useState(0);
+
+  const updateClient = useUpdateClient();
+  const deactivateInactive = useDeactivateInactiveClients();
+  const fetchInactiveCount = useFetchInactiveClientsCount();
 
   const { data: paginatedData, isLoading } = useClientsPaginated({
     search: filters.search || undefined,
@@ -81,6 +99,44 @@ export default function ClientsPage() {
     setEditingClient(null);
   };
 
+  const handleDeactivateClient = (client: Client) => {
+    setDeactivatingClient(client);
+  };
+
+  const confirmDeactivateClient = () => {
+    if (!deactivatingClient) return;
+    updateClient.mutate(
+      { id: deactivatingClient.id, active: false },
+      {
+        onSuccess: () => {
+          toast({ title: `${deactivatingClient.type === 'pf' ? deactivatingClient.name : deactivatingClient.company_name} foi inativado.` });
+          setDeactivatingClient(null);
+        },
+        onError: () => {
+          toast({ title: 'Erro ao inativar cliente', variant: 'destructive' });
+        },
+      }
+    );
+  };
+
+  const handleBulkDeactivate = async () => {
+    const result = await fetchInactiveCount.mutateAsync();
+    setBulkCount(result.count);
+    setBulkDeactivateOpen(true);
+  };
+
+  const confirmBulkDeactivate = () => {
+    deactivateInactive.mutate(undefined, {
+      onSuccess: (result) => {
+        toast({ title: `${result?.count || 0} clientes inativados com sucesso.` });
+        setBulkDeactivateOpen(false);
+      },
+      onError: () => {
+        toast({ title: 'Erro ao inativar clientes', variant: 'destructive' });
+      },
+    });
+  };
+
   const pfCount = clients?.filter(c => c.type === 'pf').length || 0;
   const pjCount = clients?.filter(c => c.type === 'pj').length || 0;
   
@@ -100,7 +156,16 @@ export default function ClientsPage() {
             }}
             showAssessorFilter={isSocio}
           />
-          <div className="flex gap-2 flex-shrink-0">
+          <div className="flex gap-2 flex-shrink-0 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={handleBulkDeactivate}
+              disabled={fetchInactiveCount.isPending}
+              className="border-destructive/50 text-destructive hover:bg-destructive/10"
+            >
+              <UserX className="h-4 w-4 mr-2" />
+              {fetchInactiveCount.isPending ? 'Verificando...' : 'Inativar Sem Receita'}
+            </Button>
             <Button 
               variant="outline" 
               onClick={() => setIsMergeOpen(true)}
@@ -157,6 +222,7 @@ export default function ClientsPage() {
                   clients={clients} 
                   onEdit={handleEdit}
                   onView={handleView}
+                  onDeactivate={handleDeactivateClient}
                 />
               </TabsContent>
               <TabsContent value="pf">
@@ -164,6 +230,7 @@ export default function ClientsPage() {
                   clients={clients.filter(c => c.type === 'pf')} 
                   onEdit={handleEdit}
                   onView={handleView}
+                  onDeactivate={handleDeactivateClient}
                 />
               </TabsContent>
               <TabsContent value="pj">
@@ -171,6 +238,7 @@ export default function ClientsPage() {
                   clients={clients.filter(c => c.type === 'pj')} 
                   onEdit={handleEdit}
                   onView={handleView}
+                  onDeactivate={handleDeactivateClient}
                 />
               </TabsContent>
             </>
@@ -208,6 +276,57 @@ export default function ClientsPage() {
         onOpenChange={setIsMergeOpen}
         clients={allClients || []}
       />
+
+      {/* Individual deactivation dialog */}
+      <AlertDialog open={!!deactivatingClient} onOpenChange={(open) => !open && setDeactivatingClient(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Inativar cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja inativar{' '}
+              <strong>
+                {deactivatingClient?.type === 'pf' ? deactivatingClient?.name : deactivatingClient?.company_name}
+              </strong>
+              ? O cliente não aparecerá mais nas listagens ativas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeactivateClient}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Inativar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk deactivation dialog */}
+      <AlertDialog open={bulkDeactivateOpen} onOpenChange={setBulkDeactivateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Inativar clientes sem receita</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkCount === 0
+                ? 'Nenhum cliente ativo sem receita nos últimos 90 dias foi encontrado.'
+                : `Foram encontrados ${bulkCount} clientes ativos sem nenhuma receita nos últimos 90 dias. Deseja inativá-los?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            {bulkCount > 0 && (
+              <AlertDialogAction
+                onClick={confirmBulkDeactivate}
+                disabled={deactivateInactive.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deactivateInactive.isPending ? 'Inativando...' : `Inativar ${bulkCount} clientes`}
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }
