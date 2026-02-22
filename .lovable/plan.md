@@ -1,26 +1,43 @@
 
 
-## Exclusao de Leads com Status "Novo"
+## Inativar Clientes - Botao Individual + Inativacao em Massa (90 dias sem receita)
 
-### Situacao Atual
-- **1.588 leads** com status "novo" no banco de dados
-- **0 interacoes** vinculadas a esses leads
-- **0 tarefas** vinculadas a esses leads
-- Exclusao segura, sem dependencias
+### O que sera feito
 
-### Acao
-Executar um comando SQL para deletar todos os registros da tabela `leads` onde `status = 'novo'`.
+**1. Botao "Inativar" na tabela de clientes**
+- Adicionar um botao com icone `UserX` na coluna de acoes de cada cliente
+- Ao clicar, exibir um dialog de confirmacao antes de marcar como inativo (`active = false`)
+- O botao so aparece para clientes ativos
 
-```text
-DELETE FROM leads WHERE status = 'novo';
-```
+**2. Botao "Inativar Sem Receita" no header da pagina**
+- Adicionar um botao no topo da pagina ao lado dos botoes existentes (Mesclar, Importar, Novo)
+- Ao clicar, o sistema consulta o banco para identificar todos os clientes ativos que **nao possuem nenhuma receita nos ultimos 90 dias**
+- Exibe um dialog de confirmacao mostrando quantos clientes serao afetados
+- Apos confirmacao, atualiza todos de uma vez para `active = false`
 
-### Importante
-- Esta acao e **irreversivel** - os 1.588 leads serao excluidos permanentemente
-- A pagina de Leads sera atualizada automaticamente apos a exclusao (o React Query invalida o cache)
-- Nenhum outro dado sera afetado
+### Arquivos a modificar
+
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/components/clients/ClientsTable.tsx` | Adicionar botao "Inativar" por linha com callback `onDeactivate` |
+| `src/pages/ClientsPage.tsx` | Adicionar botao "Inativar Sem Receita", dialog de confirmacao, e logica de inativacao em massa |
+| `src/hooks/useClients.ts` | Adicionar hook `useDeactivateInactiveClients` que consulta receitas dos ultimos 90 dias e faz update em massa |
 
 ### Detalhes tecnicos
-- Nao ha necessidade de alterar codigo, apenas executar o SQL de limpeza no banco
-- Nenhuma migracao necessaria - e uma operacao de dados pontual
+
+**Inativacao individual:**
+- Usa o `useUpdateClient` ja existente com `{ id, active: false }`
+- Dialog de confirmacao com AlertDialog do Radix
+
+**Inativacao em massa (90 dias):**
+- Query SQL: buscar clientes ativos cujo `id` NAO aparece em `revenues` com `date >= now() - 90 dias`
+- Atualizar todos esses clientes com `active = false` em batch
+- Exibir toast com quantidade de clientes inativados
+
+**Logica da query:**
+```text
+1. Buscar IDs de clientes com receita nos ultimos 90 dias (SELECT DISTINCT client_id FROM revenues WHERE date >= current_date - 90)
+2. Buscar clientes ativos cujo ID nao esta nessa lista
+3. Atualizar active = false para todos eles
+```
 
