@@ -1,7 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useUnreadAlertsCount } from '@/hooks/useAlerts';
-import { useTodayAndOverdueTasksCount } from '@/hooks/useTasks';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Moon, Sun, LogOut, User, Bell, CheckSquare } from 'lucide-react';
+import { Moon, Sun, LogOut, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
@@ -25,9 +23,6 @@ interface HeaderProps {
 export function Header({ title, actions }: HeaderProps) {
   const { profile, isSocio, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { data: unreadCount = 0 } = useUnreadAlertsCount();
-  const { data: taskCount = 0 } = useTodayAndOverdueTasksCount();
-  const navigate = useNavigate();
 
   return (
     <header className="sticky top-0 z-50 flex h-auto min-h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2">
@@ -66,37 +61,6 @@ export function Header({ title, actions }: HeaderProps) {
         <span className="sr-only">Alternar tema</span>
       </Button>
 
-      {/* Tasks */}
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="h-9 w-9 relative"
-        onClick={() => navigate('/agenda')}
-      >
-        <CheckSquare className="h-4 w-4" />
-        {taskCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium text-primary-foreground flex items-center justify-center">
-            {taskCount > 9 ? '9+' : taskCount}
-          </span>
-        )}
-        <span className="sr-only">Tarefas</span>
-      </Button>
-
-      {/* Notifications */}
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="h-9 w-9 relative"
-        onClick={() => navigate('/alerts')}
-      >
-        <Bell className="h-4 w-4" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-        <span className="sr-only">Notificações</span>
-      </Button>
 
       {/* User Menu */}
       <DropdownMenu>

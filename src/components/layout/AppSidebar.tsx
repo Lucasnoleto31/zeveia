@@ -9,17 +9,12 @@ import {
   DollarSign,
   FileBarChart,
   Monitor,
-  Target,
-  Bell,
   BarChart3,
-  Calendar,
   CalendarClock,
   Settings,
   ChevronDown,
   Heart,
   Megaphone,
-  Trophy,
-  TrendingUp,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -57,12 +52,8 @@ const financialItems = [
 ];
 
 const managementItems = [
-  { title: 'Agenda', url: '/agenda', icon: Calendar },
-  { title: 'Metas', url: '/goals', icon: Target },
-  { title: 'Alertas', url: '/alerts', icon: Bell },
   { title: 'Retenção', url: '/retention', icon: Heart },
   { title: 'Calendário Macro', url: '/macro-events', icon: CalendarClock },
-  { title: 'Wealth', url: '/wealth', icon: TrendingUp },
 ];
 
 const reportItems = [
