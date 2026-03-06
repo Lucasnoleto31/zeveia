@@ -41,8 +41,8 @@ const revenueSchema = z.object({
   subproduct_id: z.string().optional(),
   gross_revenue: z.coerce.number().min(0, 'Valor inválido'),
   taxes: z.coerce.number().min(0, 'Valor inválido'),
-  bank_share: z.coerce.number().min(0, 'Valor inválido'),
-  our_share: z.coerce.number().min(0, 'Valor inválido'),
+  bank_share: z.coerce.number(),
+  our_share: z.coerce.number(),
 });
 
 type RevenueFormData = z.infer<typeof revenueSchema>;
@@ -83,7 +83,7 @@ export function RevenueFormDialog({ open, onOpenChange, revenue }: RevenueFormDi
 
   useEffect(() => {
     const ourShare = Number(grossRevenue) - Number(taxes) - Number(bankShare);
-    form.setValue('our_share', ourShare >= 0 ? ourShare : 0);
+    form.setValue('our_share', ourShare);
   }, [grossRevenue, taxes, bankShare, form]);
 
   useEffect(() => {
@@ -307,7 +307,6 @@ export function RevenueFormDialog({ open, onOpenChange, revenue }: RevenueFormDi
                       <Input
                         type="number"
                         step="0.01"
-                        min="0"
                         placeholder="0,00"
                         {...field}
                       />
