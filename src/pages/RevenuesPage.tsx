@@ -203,7 +203,7 @@ export default function RevenuesPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Genial</CardTitle>
+            <CardTitle className="text-sm font-medium">Genial Investimentos</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -212,7 +212,7 @@ export default function RevenuesPage() {
         </Card>
         <Card className="bg-primary/5 border-primary/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Zeve</CardTitle>
+            <CardTitle className="text-sm font-medium">Receita Liquida</CardTitle>
             <DollarSign className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
@@ -351,8 +351,8 @@ export default function RevenuesPage() {
                     <TableHead>Subproduto</TableHead>
                     <TableHead className="text-right">Bruto</TableHead>
                     <TableHead className="text-right">Impostos</TableHead>
-                    <TableHead className="text-right">Banco</TableHead>
-                    <TableHead className="text-right">Nossa Parte</TableHead>
+                    <TableHead className="text-right">Genial Investimentos</TableHead>
+                    <TableHead className="text-right">Receita Liquida</TableHead>
                     <TableHead className="w-[100px]"></TableHead>
                   </TableRow>
                 </TableHeader>
