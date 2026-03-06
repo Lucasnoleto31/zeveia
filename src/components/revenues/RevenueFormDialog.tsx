@@ -302,7 +302,7 @@ export function RevenueFormDialog({ open, onOpenChange, revenue }: RevenueFormDi
                 name="bank_share"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Repasse Banco (R$)</FormLabel>
+                    <FormLabel>Genial Investimentos (R$)</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -321,7 +321,7 @@ export function RevenueFormDialog({ open, onOpenChange, revenue }: RevenueFormDi
                 name="our_share"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nossa Parte (R$)</FormLabel>
+                    <FormLabel>Receita Liquida (R$)</FormLabel>
                     <FormControl>
                       <Input
                         type="number"

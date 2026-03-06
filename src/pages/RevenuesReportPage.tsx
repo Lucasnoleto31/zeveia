@@ -100,8 +100,8 @@ export default function RevenuesReportPage() {
       body: [
         ['Receita Bruta', formatCurrency(data.totalGross)],
         ['Impostos', formatCurrency(data.totalTaxes)],
-        ['Genial', formatCurrency(data.totalGenial)],
-        ['Zeve', formatCurrency(data.totalZeve)],
+        ['Genial Investimentos', formatCurrency(data.totalGenial)],
+        ['Receita Liquida', formatCurrency(data.totalZeve)],
         ['Ticket Médio', formatCurrency(data.averageTicket)],
         ['Receita/Cliente', formatCurrency(data.revenuePerClient)],
         ['Crescimento MoM', formatPercent(data.momGrowth)],
@@ -319,7 +319,7 @@ export default function RevenuesReportPage() {
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="font-medium">Genial</TableCell>
+                        <TableCell className="font-medium">Genial Investimentos</TableCell>
                         <TableCell className="text-right font-mono">{formatCurrency(comparisonData.month1.metrics.genial)}</TableCell>
                         <TableCell className="text-right font-mono">{formatCurrency(comparisonData.month2.metrics.genial)}</TableCell>
                         <TableCell className="text-right">
@@ -329,7 +329,7 @@ export default function RevenuesReportPage() {
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="font-medium">Zeve</TableCell>
+                        <TableCell className="font-medium">Receita Liquida</TableCell>
                         <TableCell className="text-right font-mono text-primary">{formatCurrency(comparisonData.month1.metrics.zeve)}</TableCell>
                         <TableCell className="text-right font-mono text-primary">{formatCurrency(comparisonData.month2.metrics.zeve)}</TableCell>
                         <TableCell className="text-right">
@@ -396,7 +396,7 @@ export default function RevenuesReportPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Genial</CardTitle>
+              <CardTitle className="text-sm font-medium">Genial Investimentos</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -406,7 +406,7 @@ export default function RevenuesReportPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Zeve</CardTitle>
+              <CardTitle className="text-sm font-medium">Receita Liquida</CardTitle>
               <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
@@ -485,11 +485,11 @@ export default function RevenuesReportPage() {
                 <ToggleGroupItem value="taxes" aria-label="Impostos" className="data-[state=on]:bg-[hsl(var(--chart-2))]/20 data-[state=on]:text-[hsl(var(--chart-2))]">
                   Impostos
                 </ToggleGroupItem>
-                <ToggleGroupItem value="genial" aria-label="Genial" className="data-[state=on]:bg-[hsl(var(--chart-3))]/20 data-[state=on]:text-[hsl(var(--chart-3))]">
-                  Genial
+                <ToggleGroupItem value="genial" aria-label="Genial Investimentos" className="data-[state=on]:bg-[hsl(var(--chart-3))]/20 data-[state=on]:text-[hsl(var(--chart-3))]">
+                  Genial Investimentos
                 </ToggleGroupItem>
-                <ToggleGroupItem value="zeve" aria-label="Zeve" className="data-[state=on]:bg-primary/20 data-[state=on]:text-primary">
-                  Zeve
+                <ToggleGroupItem value="zeve" aria-label="Receita Liquida" className="data-[state=on]:bg-primary/20 data-[state=on]:text-primary">
+                  Receita Liquida
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
@@ -512,10 +512,10 @@ export default function RevenuesReportPage() {
                     <Area type="monotone" dataKey="taxes" name="Impostos" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.2} />
                   )}
                   {visibleSeries.includes('genial') && (
-                    <Area type="monotone" dataKey="genial" name="Genial" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.2} />
+                    <Area type="monotone" dataKey="genial" name="Genial Investimentos" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.2} />
                   )}
                   {visibleSeries.includes('zeve') && (
-                    <Area type="monotone" dataKey="zeve" name="Zeve" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
+                    <Area type="monotone" dataKey="zeve" name="Receita Liquida" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
                   )}
                 </AreaChart>
               </ResponsiveContainer>
