@@ -1,37 +1,43 @@
 
 
-## Exclusao das Paginas: Agenda, Metas, Alertas e Wealth
+## Inativar Clientes - Botao Individual + Inativacao em Massa (90 dias sem receita)
 
-### Arquivos a deletar
+### O que sera feito
 
-**Paginas:**
-- `src/pages/AgendaPage.tsx`
-- `src/pages/GoalsPage.tsx`
-- `src/pages/AlertsPage.tsx`
-- `src/pages/WealthSimulatorPage.tsx`
+**1. Botao "Inativar" na tabela de clientes**
+- Adicionar um botao com icone `UserX` na coluna de acoes de cada cliente
+- Ao clicar, exibir um dialog de confirmacao antes de marcar como inativo (`active = false`)
+- O botao so aparece para clientes ativos
 
-**Componentes exclusivos dessas paginas:**
-- `src/components/alerts/AlertCard.tsx`
-- `src/components/alerts/AlertFilters.tsx`
-- `src/components/goals/GoalCard.tsx`
-- `src/components/goals/GoalFormDialog.tsx`
-- `src/components/tasks/CalendarView.tsx` (usado apenas na Agenda)
-
-**Hooks exclusivos:**
-- `src/hooks/useGoals.ts`
-- `src/hooks/useAlerts.ts`
-- `src/hooks/useWealthSimulator.ts`
+**2. Botao "Inativar Sem Receita" no header da pagina**
+- Adicionar um botao no topo da pagina ao lado dos botoes existentes (Mesclar, Importar, Novo)
+- Ao clicar, o sistema consulta o banco para identificar todos os clientes ativos que **nao possuem nenhuma receita nos ultimos 90 dias**
+- Exibe um dialog de confirmacao mostrando quantos clientes serao afetados
+- Apos confirmacao, atualiza todos de uma vez para `active = false`
 
 ### Arquivos a modificar
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/App.tsx` | Remover imports e rotas de `/agenda`, `/goals`, `/alerts`, `/wealth` |
-| `src/components/layout/AppSidebar.tsx` | Remover Agenda, Metas, Alertas e Wealth do menu de navegacao |
-| `src/components/layout/Header.tsx` | Remover referencia a `useUnreadAlertsCount` e icone/badge de alertas |
-| `src/components/dashboard/TasksWidget.tsx` | Manter (usa tasks que tambem aparecem em LeadDetail e ClientDetail) |
+| `src/components/clients/ClientsTable.tsx` | Adicionar botao "Inativar" por linha com callback `onDeactivate` |
+| `src/pages/ClientsPage.tsx` | Adicionar botao "Inativar Sem Receita", dialog de confirmacao, e logica de inativacao em massa |
+| `src/hooks/useClients.ts` | Adicionar hook `useDeactivateInactiveClients` que consulta receitas dos ultimos 90 dias e faz update em massa |
 
-### O que sera preservado
-- `src/hooks/useTasks.ts` e componentes `TaskCard`/`TaskFormDialog` - sao usados nas paginas LeadDetail e ClientDetail
-- Tabelas no banco de dados permanecem intactas (apenas o frontend e removido)
+### Detalhes tecnicos
+
+**Inativacao individual:**
+- Usa o `useUpdateClient` ja existente com `{ id, active: false }`
+- Dialog de confirmacao com AlertDialog do Radix
+
+**Inativacao em massa (90 dias):**
+- Query SQL: buscar clientes ativos cujo `id` NAO aparece em `revenues` com `date >= now() - 90 dias`
+- Atualizar todos esses clientes com `active = false` em batch
+- Exibir toast com quantidade de clientes inativados
+
+**Logica da query:**
+```text
+1. Buscar IDs de clientes com receita nos ultimos 90 dias (SELECT DISTINCT client_id FROM revenues WHERE date >= current_date - 90)
+2. Buscar clientes ativos cujo ID nao esta nessa lista
+3. Atualizar active = false para todos eles
+```
 

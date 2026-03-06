@@ -21,9 +21,6 @@ const ContractsPage = lazy(() => import("./pages/ContractsPage"));
 const PartnersPage = lazy(() => import("./pages/PartnersPage"));
 const PartnerDetailPage = lazy(() => import("./pages/PartnerDetailPage"));
 const PlatformCostsPage = lazy(() => import("./pages/PlatformCostsPage"));
-const GoalsPage = lazy(() => import("./pages/GoalsPage"));
-const AlertsPage = lazy(() => import("./pages/AlertsPage"));
-const AgendaPage = lazy(() => import("./pages/AgendaPage"));
 const FunnelReportPage = lazy(() => import("./pages/FunnelReportPage"));
 const OpportunitiesReportPage = lazy(() => import("./pages/OpportunitiesReportPage"));
 const PerformanceReportPage = lazy(() => import("./pages/PerformanceReportPage"));
@@ -37,7 +34,7 @@ const MacroEventsPage = lazy(() => import("./pages/MacroEventsPage"));
 const RetentionDashboardPage = lazy(() => import("./pages/RetentionDashboardPage"));
 const InfluencerPipelinePage = lazy(() => import("./pages/InfluencerPipelinePage"));
 const InfluencerDetailPage = lazy(() => import("./pages/InfluencerDetailPage"));
-const WealthSimulatorPage = lazy(() => import("./pages/WealthSimulatorPage"));
+
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -80,14 +77,11 @@ const App = () => (
                   <Route path="/partners" element={<ProtectedRoute><PartnersPage /></ProtectedRoute>} />
                   <Route path="/partners/:id" element={<ProtectedRoute><PartnerDetailPage /></ProtectedRoute>} />
                   <Route path="/platforms" element={<ProtectedRoute><PlatformCostsPage /></ProtectedRoute>} />
-                  <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
-                  <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />
-                  <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
                   <Route path="/macro-events" element={<ProtectedRoute><MacroEventsPage /></ProtectedRoute>} />
                   <Route path="/retention" element={<ProtectedRoute><RetentionDashboardPage /></ProtectedRoute>} />
                   <Route path="/influencers" element={<ProtectedRoute><InfluencerPipelinePage /></ProtectedRoute>} />
                   <Route path="/influencers/:id" element={<ProtectedRoute><InfluencerDetailPage /></ProtectedRoute>} />
-                  <Route path="/wealth" element={<ProtectedRoute><WealthSimulatorPage /></ProtectedRoute>} />
+                  
                   <Route path="/reports/funnel" element={<ProtectedRoute><FunnelReportPage /></ProtectedRoute>} />
                   <Route path="/reports/opportunities" element={<ProtectedRoute><OpportunitiesReportPage /></ProtectedRoute>} />
                   <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReportPage /></ProtectedRoute>} />
