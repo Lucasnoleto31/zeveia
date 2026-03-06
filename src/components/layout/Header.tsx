@@ -13,7 +13,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Moon, Sun, LogOut, User } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+
 
 interface HeaderProps {
   title?: React.ReactNode;
